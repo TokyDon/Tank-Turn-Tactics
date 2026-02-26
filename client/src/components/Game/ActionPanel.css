@@ -96,11 +96,16 @@
   letter-spacing: 0.04em;
 }
 
-.idle-btn {
-  font-size: 11px;
-  color: var(--text-muted);
+.idle-warning {
+  padding: var(--sp-2) var(--sp-3);
+  background: rgba(207,40,40,0.08);
+  border: 1px solid rgba(207,40,40,0.25);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  color: var(--red-text);
   letter-spacing: 0.08em;
-  border-style: dashed;
+  margin-bottom: var(--sp-2);
+  text-align: center;
 }
 
 /* Selecting phase */
@@ -218,4 +223,63 @@
   letter-spacing: 0.08em;
   text-align: center;
   padding: var(--sp-2) 0;
+}
+
+/* Idle penalty confirm row */
+.confirm-row-idle {
+  border-color: rgba(207,40,40,0.3);
+  background: rgba(207,40,40,0.05);
+}
+.confirm-value-idle {
+  font-size: 11px;
+  color: var(--red-text);
+  flex: 1;
+  letter-spacing: 0.04em;
+}
+
+/* Inline secondary picker */
+.secondary-inline-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+.secondary-picker-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  padding-left: var(--sp-1);
+}
+.secondary-target-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.secondary-target-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, border-color 0.1s;
+}
+.secondary-target-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--amber-text);
+}
+.sec-target-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  flex-shrink: 0;
 }

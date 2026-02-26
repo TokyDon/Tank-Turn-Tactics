@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import type { GamePlayer, GameState, PrimaryAction, SecondaryAction } from '../../types/game';
 import type { Phase } from './Game';
 import './ActionPanel.css';
@@ -16,11 +17,10 @@ interface Props {
   setPendingSecondary: (a: SecondaryAction | null) => void;
   setGiftAmount: (n: number) => void;
   onSubmit: () => void;
-  onIdle: () => void;
   onCancel: () => void;
 }
 
-const ACTION_COSTS: Record<string, number | string> = {
+const ACTION_COSTS: Record<string, number> = {
   move: 1, attack: 1, addHeart: 3, upgradeRange: 3, idle: 0
 };
 
@@ -28,8 +28,14 @@ export default function ActionPanel({
   me, game, phase, pendingPrimary, pendingSecondary,
   giftAmount, submitting, canAct,
   setPhase, setPendingPrimary, setPendingSecondary,
-  setGiftAmount, onSubmit, onIdle, onCancel
+  setGiftAmount, onSubmit, onCancel
 }: Props) {
+  const [secMode, setSecMode] = useState<null | 'heart' | 'ap'>(null);
+
+  useEffect(() => {
+    if (phase === 'idle') setSecMode(null);
+  }, [phase]);
+
   if (!me || me.isDowned) return null;
 
   const ap = me.ap ?? 0;
@@ -55,16 +61,74 @@ export default function ActionPanel({
     );
   }
 
+  const targets = game.players.filter(p => !p.isDowned && !p.isMe);
+
+  function targetName(id?: string) {
+    return id ? (game.players.find(p => p.userId === id)?.username ?? id) : null;
+  }
+
+  function renderInlinePicker() {
+    if (secMode === 'heart') {
+      return (
+        <div className="secondary-inline-picker">
+          <div className="secondary-picker-label tactical">SEND ♥ TO:</div>
+          <div className="secondary-target-list">
+            {targets.map(p => (
+              <button key={p.userId} className="secondary-target-btn tactical"
+                onClick={() => {
+                  setPendingSecondary({ type: 'giveHeart', targetUserId: p.userId });
+                  setSecMode(null);
+                  if (phase === 'idle') setPhase('confirm');
+                }}>
+                <span className="sec-target-dot" style={{ background: p.color }} />
+                {p.username}
+              </button>
+            ))}
+          </div>
+          <button className="btn btn-ghost btn-sm btn-full" onClick={() => setSecMode(null)}>CANCEL</button>
+        </div>
+      );
+    }
+    if (secMode === 'ap') {
+      return (
+        <div className="secondary-inline-picker">
+          <div className="secondary-picker-label tactical">TRANSFER AP — PICK AMOUNT THEN TARGET:</div>
+          <div className="ap-amount-row">
+            {[1, 2, 3].map(n => (
+              <button key={n}
+                className={`btn btn-sm ${giftAmount === n ? 'btn-amber' : 'btn-ghost'}`}
+                onClick={() => setGiftAmount(n)} disabled={n > ap}
+              >{n} AP</button>
+            ))}
+          </div>
+          <div className="secondary-target-list">
+            {targets.map(p => (
+              <button key={p.userId} className="secondary-target-btn tactical"
+                onClick={() => {
+                  setPendingSecondary({ type: 'giveAP', targetUserId: p.userId, amount: giftAmount });
+                  setSecMode(null);
+                  if (phase === 'idle') setPhase('confirm');
+                }}>
+                <span className="sec-target-dot" style={{ background: p.color }} />
+                {p.username}
+              </button>
+            ))}
+          </div>
+          <button className="btn btn-ghost btn-sm btn-full" onClick={() => setSecMode(null)}>CANCEL</button>
+        </div>
+      );
+    }
+    return null;
+  }
+
   // Confirm phase
   if (phase === 'confirm' && (pendingPrimary || pendingSecondary)) {
-    const targetName = (id?: string) =>
-      id ? game.players.find(p => p.userId === id)?.username ?? id : null;
-
     return (
       <div className="action-panel confirm-phase">
         <div className="confirm-header tactical">CONFIRM ORDERS</div>
         <div className="confirm-rows">
-          {pendingPrimary && pendingPrimary.type !== 'idle' && (
+          {/* Primary row */}
+          {pendingPrimary && pendingPrimary.type !== 'idle' ? (
             <div className="confirm-row">
               <span className="confirm-label">PRIMARY</span>
               <span className="confirm-value">
@@ -77,8 +141,14 @@ export default function ActionPanel({
                 -{ACTION_COSTS[pendingPrimary.type]} AP
               </span>
             </div>
+          ) : (
+            <div className="confirm-row confirm-row-idle">
+              <span className="confirm-label">PRIMARY</span>
+              <span className="confirm-value-idle tactical">⚠ NO ACTION — COSTS 1 HP</span>
+            </div>
           )}
-          {pendingSecondary && pendingSecondary.type !== 'idle' && (
+          {/* Secondary row */}
+          {pendingSecondary && pendingSecondary.type !== 'idle' ? (
             <div className="confirm-row">
               <span className="confirm-label">SECONDARY</span>
               <span className="confirm-value">
@@ -86,31 +156,25 @@ export default function ActionPanel({
                 {pendingSecondary.type === 'giveAP' && `TRANSFER ${pendingSecondary.amount} AP → ${targetName(pendingSecondary.targetUserId)}`}
               </span>
             </div>
+          ) : secMode ? (
+            renderInlinePicker()
+          ) : (
+            <div className="confirm-secondary-pick">
+              <div className="confirm-secondary-label tactical">— SECONDARY ORDER (OPTIONAL) —</div>
+              <div className="confirm-secondary-row">
+                <button className="btn btn-sm btn-ghost" onClick={() => setSecMode('heart')}>
+                  ♥ SEND HEART
+                </button>
+                <button className="btn btn-sm btn-ghost" onClick={() => setSecMode('ap')} disabled={ap < 1}>
+                  ⚡ SEND AP
+                </button>
+              </div>
+            </div>
           )}
         </div>
-        {(!pendingSecondary || pendingSecondary.type === 'idle') && (
-          <div className="confirm-secondary-pick">
-            <div className="confirm-secondary-label tactical">— SECONDARY ORDER (OPTIONAL) —</div>
-            <div className="confirm-secondary-row">
-              <button
-                className="btn btn-sm btn-ghost"
-                onClick={() => setPhase('select-gift-heart')}
-              >
-                ♥ SEND HEART
-              </button>
-              <button
-                className="btn btn-sm btn-ghost"
-                onClick={() => setPhase('select-gift-ap')}
-                disabled={ap < 1}
-              >
-                ⚡ SEND AP
-              </button>
-            </div>
-          </div>
-        )}
         <div className="confirm-actions">
-          <button className="btn btn-ghost" onClick={onCancel} disabled={submitting}>ABORT</button>
-          <button className="btn btn-amber" onClick={onSubmit} disabled={submitting}>
+          <button className="btn btn-ghost" onClick={() => { setSecMode(null); onCancel(); }} disabled={submitting}>ABORT</button>
+          <button className="btn btn-amber" onClick={onSubmit} disabled={submitting || !!secMode}>
             {submitting ? 'TRANSMITTING...' : 'EXECUTE'}
           </button>
         </div>
@@ -135,118 +199,91 @@ export default function ActionPanel({
       </div>
     );
   }
-  if (phase === 'select-gift-heart') {
-    return (
-      <div className="action-panel selecting">
-        <div className="selecting-hint tactical">TAP A PLAYER WITHIN RANGE TO SEND ♥</div>
-        <button className="btn btn-ghost btn-sm" onClick={onCancel}>CANCEL</button>
-      </div>
-    );
-  }
-  if (phase === 'select-gift-ap') {
-    return (
-      <div className="action-panel selecting">
-        <div className="selecting-hint tactical">TRANSFER AP — SELECT AMOUNT THEN TAP TARGET</div>
-        <div className="ap-amount-row">
-          {[1, 2, 3].map(n => (
-            <button
-              key={n}
-              className={`btn btn-sm ${giftAmount === n ? 'btn-amber' : 'btn-ghost'}`}
-              onClick={() => setGiftAmount(n)}
-              disabled={n > ap}
-            >
-              {n} AP
-            </button>
-          ))}
-        </div>
-        <button className="btn btn-ghost btn-sm" onClick={onCancel}>CANCEL</button>
-      </div>
-    );
-  }
 
   // Default action selection
   return (
     <div className="action-panel">
-      <div className="panel-header">
-        <span className="panel-title tactical">SELECT ORDER</span>
-        <span className="panel-ap tactical">⚡ {ap} AP</span>
-      </div>
-
-      <div className="action-sections">
-        {/* Primary actions */}
-        <div className="action-group">
-          <span className="action-group-label tactical">PRIMARY</span>
-          <div className="action-grid">
-            <ActionButton
-              label="MOVE"
-              icon="→"
-              cost={1}
-              ap={ap}
-              onClick={() => {
-                setPendingPrimary({ type: 'move' });
-                setPhase('select-move');
-              }}
-            />
-            <ActionButton
-              label="ATTACK"
-              icon="⊕"
-              cost={1}
-              ap={ap}
-              danger
-              onClick={() => {
-                setPendingPrimary({ type: 'attack' });
-                setPhase('select-attack');
-              }}
-            />
-            <ActionButton
-              label="+ HEART"
-              icon="♥"
-              cost={3}
-              ap={ap}
-              onClick={() => {
-                setPendingPrimary({ type: 'addHeart' });
-                setPhase('confirm');
-              }}
-            />
-            <ActionButton
-              label="RANGE++"
-              icon="◎"
-              cost={3}
-              ap={ap}
-              onClick={() => {
-                setPendingPrimary({ type: 'upgradeRange' });
-                setPhase('confirm');
-              }}
-            />
+      <div className="idle-warning tactical">⚠ NOT ACTING THIS TURN COSTS 1 HP</div>
+      {secMode ? renderInlinePicker() : (
+        <>
+          <div className="panel-header">
+            <span className="panel-title tactical">SELECT ORDER</span>
+            <span className="panel-ap tactical">⚡ {ap} AP</span>
           </div>
-        </div>
 
-        {/* Secondary actions */}
-        <div className="action-group">
-          <span className="action-group-label tactical">SECONDARY</span>
-          <div className="action-grid">
-            <ActionButton
-              label="SEND ♥"
-              icon="♥"
-              cost={0}
-              ap={ap}
-              green
-              onClick={() => setPhase('select-gift-heart')}
-            />
-            <ActionButton
-              label="SEND AP"
-              icon="⚡"
-              cost={1}
-              ap={ap}
-              onClick={() => setPhase('select-gift-ap')}
-            />
+          <div className="action-sections">
+            {/* Primary actions */}
+            <div className="action-group">
+              <span className="action-group-label tactical">PRIMARY</span>
+              <div className="action-grid">
+                <ActionButton
+                  label="MOVE"
+                  icon="↑"
+                  cost={1}
+                  ap={ap}
+                  onClick={() => {
+                    setPendingPrimary({ type: 'move' });
+                    setPhase('select-move');
+                  }}
+                />
+                <ActionButton
+                  label="ATTACK"
+                  icon="⊕"
+                  cost={1}
+                  ap={ap}
+                  danger
+                  onClick={() => {
+                    setPendingPrimary({ type: 'attack' });
+                    setPhase('select-attack');
+                  }}
+                />
+                <ActionButton
+                  label="+ HEART"
+                  icon="♥"
+                  cost={3}
+                  ap={ap}
+                  onClick={() => {
+                    setPendingPrimary({ type: 'addHeart' });
+                    setPhase('confirm');
+                  }}
+                />
+                <ActionButton
+                  label="RANGE++"
+                  icon="◎"
+                  cost={3}
+                  ap={ap}
+                  onClick={() => {
+                    setPendingPrimary({ type: 'upgradeRange' });
+                    setPhase('confirm');
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Secondary actions */}
+            <div className="action-group">
+              <span className="action-group-label tactical">SECONDARY</span>
+              <div className="action-grid">
+                <ActionButton
+                  label="SEND ♥"
+                  icon="♥"
+                  cost={0}
+                  ap={ap}
+                  green
+                  onClick={() => setSecMode('heart')}
+                />
+                <ActionButton
+                  label="SEND AP"
+                  icon="⚡"
+                  cost={1}
+                  ap={ap}
+                  onClick={() => setSecMode('ap')}
+                />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <button className="btn btn-ghost btn-full idle-btn" onClick={onIdle} disabled={submitting}>
-        HOLD POSITION (DO NOTHING)
-      </button>
+        </>
+      )}
     </div>
   );
 }

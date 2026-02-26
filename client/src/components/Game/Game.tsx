@@ -12,12 +12,10 @@ import './Game.css';
 interface Props { onLeave: () => void; }
 
 export type Phase =
-  | 'idle'               // no action selected
-  | 'select-move'        // picking a cell to move to
-  | 'select-attack'      // picking a player to attack
-  | 'select-gift-heart'  // picking a player to give heart
-  | 'select-gift-ap'     // picking a player to give AP
-  | 'confirm';           // reviewing before submitting
+  | 'idle'          // no action selected
+  | 'select-move'   // picking a cell to move to
+  | 'select-attack' // picking a player to attack
+  | 'confirm';      // reviewing before submitting
 
 export default function Game({ onLeave }: Props) {
   const { game, user, refreshGame, clearGame } = useGame();
@@ -52,28 +50,12 @@ export default function Game({ onLeave }: Props) {
   const pendingCount = activePlayers.filter(p => !p.hasTakenTurn).length;
 
   async function submitAction() {
-    if (!pendingPrimary || !game) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      await api.takeAction(game.id, pendingPrimary, pendingSecondary || undefined);
-      await refreshGame();
-      setPendingPrimary(null);
-      setPendingSecondary(null);
-      setPhase('idle');
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Action failed');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function submitIdle() {
     if (!game) return;
     setSubmitting(true);
     setError('');
     try {
-      await api.takeAction(game.id, { type: 'idle' }, { type: 'idle' });
+      const primary = pendingPrimary ?? { type: 'idle' as const };
+      await api.takeAction(game.id, primary, pendingSecondary || undefined);
       await refreshGame();
       setPendingPrimary(null);
       setPendingSecondary(null);
@@ -133,12 +115,6 @@ export default function Game({ onLeave }: Props) {
         return;
       }
       setPendingPrimary({ type: 'attack', targetUserId: target.userId });
-      setPhase('confirm');
-    } else if (phase === 'select-gift-heart') {
-      setPendingSecondary({ type: 'giveHeart', targetUserId: target.userId });
-      setPhase('confirm');
-    } else if (phase === 'select-gift-ap') {
-      setPendingSecondary({ type: 'giveAP', targetUserId: target.userId, amount: giftAmount });
       setPhase('confirm');
     }
   }
@@ -291,7 +267,7 @@ export default function Game({ onLeave }: Props) {
                     key={p.userId}
                     className={`unit-row card ${p.isDowned ? 'downed' : ''} ${p.isMe ? 'is-me' : ''}`}
                     onClick={() => {
-                      if (canAct && !p.isMe && !p.isDowned && (phase === 'select-attack' || phase === 'select-gift-heart' || phase === 'select-gift-ap')) {
+                      if (canAct && !p.isMe && !p.isDowned && phase === 'select-attack') {
                         handlePlayerClick(p);
                       }
                     }}
@@ -352,7 +328,6 @@ export default function Game({ onLeave }: Props) {
               setPendingSecondary={setPendingSecondary}
               setGiftAmount={setGiftAmount}
               onSubmit={submitAction}
-              onIdle={submitIdle}
               onCancel={cancelAction}
             />
           )}

@@ -7,7 +7,7 @@ import './Login.css';
 type View = 'auth' | 'codes' | 'recover';
 
 export default function Login() {
-  const { login, register, loading } = useGame();
+  const { login, register, confirmRegistration, loading } = useGame();
 
   const [view, setView]         = useState<View>('auth');
   const [mode, setMode]         = useState<'login' | 'register'>('login');
@@ -101,7 +101,7 @@ export default function Login() {
               </button>
               <button
                 className="btn btn-ghost btn-full"
-                onClick={() => setView('auth')}
+                onClick={() => confirmRegistration()}
               >
                 I HAVE SAVED THEM — CONTINUE →
               </button>

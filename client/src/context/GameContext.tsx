@@ -11,6 +11,7 @@ interface GameContextValue {
   error: string | null;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string) => Promise<string[]>;
+  confirmRegistration: () => void;
   logout: () => void;
   loadGame: (id: string) => Promise<void>;
   clearGame: () => void;
@@ -26,6 +27,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const currentGameId = useRef<string | null>(null);
+  const pendingAuth = useRef<{ token: string; user: User } | null>(null);
 
   // Restore session
   useEffect(() => {
@@ -91,9 +93,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const { token: t, user: u, recoveryCodes } = await api.register(username, password);
+      // Store token so socket auth works, but defer setting user until codes confirmed
       localStorage.setItem('ttt_token', t);
-      setToken(t);
-      setUser(u);
+      pendingAuth.current = { token: t, user: u };
       return recoveryCodes;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -101,6 +103,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const confirmRegistration = useCallback(() => {
+    if (!pendingAuth.current) return;
+    const { token: t, user: u } = pendingAuth.current;
+    setToken(t);
+    setUser(u);
+    pendingAuth.current = null;
   }, []);
 
   const logout = useCallback(() => {
@@ -150,7 +160,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <GameContext.Provider value={{ user, token, game, loading, error, login, register, logout, loadGame, clearGame, refreshGame }}>
+    <GameContext.Provider value={{ user, token, game, loading, error, login, register, confirmRegistration, logout, loadGame, clearGame, refreshGame }}>
       {children}
     </GameContext.Provider>
   );

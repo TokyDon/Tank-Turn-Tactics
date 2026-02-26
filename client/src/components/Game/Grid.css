@@ -189,31 +189,39 @@
   50% { transform: scale(1.2); opacity: 0.7; }
 }
 
-/* Player stats inside cell */
-.cell-player-stats {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  z-index: 1;
+/* Health bar inside cell */
+.cell-health-bar {
+  position: absolute;
+  bottom: 1px;
+  left: 1px;
+  right: 1px;
+  height: max(3px, calc(var(--cell-px, 20px) * 0.12));
+  background: rgba(0,0,0,0.4);
+  border-radius: 1px;
+  overflow: hidden;
   pointer-events: none;
-  line-height: 1;
+  z-index: 2;
+}
+.cell-health-fill {
+  height: 100%;
+  background: var(--red-bright, #cf2828);
+  transition: width 0.2s;
+}
+.cell-me .cell-health-fill {
+  background: var(--amber, #d4860a);
 }
 
-.cell-hearts {
-  font-size: max(3px, calc(var(--cell-px, 20px) * 0.20));
-  color: var(--red-text);
-  letter-spacing: -1px;
-  filter: drop-shadow(0 0 2px rgba(207,40,40,0.5));
-  line-height: 1;
-}
-
-.cell-range {
+/* Range indicator top-right corner */
+.cell-range-corner {
+  position: absolute;
+  top: 1px;
+  right: 2px;
   font-family: var(--font-tactical);
-  font-size: max(3px, calc(var(--cell-px, 20px) * 0.17));
-  color: rgba(160,170,180,0.8);
-  letter-spacing: 0;
+  font-size: max(5px, calc(var(--cell-px, 20px) * 0.22));
+  color: rgba(160,170,180,0.9);
   line-height: 1;
+  pointer-events: none;
+  z-index: 2;
 }
 
 /* Zoom controls */
@@ -288,3 +296,89 @@
 .legend-item { font-size: 9px; }
 .legend-item.heart { color: var(--red-text); }
 .legend-item.loot  { color: var(--amber-text); }
+
+/* Enemy tap popup */
+.player-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+}
+.player-popup {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  min-width: 200px;
+  max-width: 300px;
+  width: 100%;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.popup-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.popup-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+  letter-spacing: 0.04em;
+}
+.popup-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+.popup-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.popup-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+}
+.popup-stat-label {
+  font-family: var(--font-tactical);
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  width: 44px;
+  flex-shrink: 0;
+}
+.popup-stat-value {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.popup-heart {
+  color: var(--red-text);
+  font-size: 13px;
+}
+.popup-heart.empty {
+  color: var(--text-muted);
+  opacity: 0.4;
+}

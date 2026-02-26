@@ -3,6 +3,8 @@ import type { GameState, GamePlayer } from '../../types/game';
 import type { Phase } from './Game';
 import './Grid.css';
 
+const COLS = 'ABCDEFGHIJKLMNOP';
+
 interface Props {
   game: GameState;
   me: GamePlayer | null;
@@ -14,6 +16,7 @@ interface Props {
 export default function Grid({ game, me, phase, onCellClick, onPlayerClick }: Props) {
   const size = game.activeGridSize;
   const [zoom, setZoom] = useState(1.0);
+  const [popup, setPopup] = useState<GamePlayer | null>(null);
 
   // Build lookup maps
   const playerAt = useMemo(() => {
@@ -65,9 +68,8 @@ export default function Grid({ game, me, phase, onCellClick, onPlayerClick }: Pr
     else if (player && !player.isDowned) classes.push('cell-enemy');
     else if (player?.isDowned) classes.push('cell-downed');
     if (phase === 'select-move' && adjacentSet.has(key)) classes.push('cell-move-target');
-    if ((phase === 'select-attack' || phase === 'select-gift-heart' || phase === 'select-gift-ap') && rangeSet.has(key)) {
+    if (phase === 'select-attack' && rangeSet.has(key)) {
       if (player && !player.isDowned && !player.isMe) classes.push('cell-attack-target');
-      else if (player?.isDowned && phase === 'select-gift-heart') classes.push('cell-attack-target');
     }
     if (me && x === me.x && y === me.y) classes.push('cell-self');
     return classes.join(' ');
@@ -82,13 +84,13 @@ export default function Grid({ game, me, phase, onCellClick, onPlayerClick }: Pr
       </div>
       <div className="grid-coords-x tactical">
         {Array.from({ length: size }, (_, i) => (
-          <span key={i} className="coord-label">{i}</span>
+          <span key={i} className="coord-label">{COLS[i]}</span>
         ))}
       </div>
       <div className="grid-row-wrapper">
         <div className="grid-coords-y tactical">
           {Array.from({ length: size }, (_, i) => (
-            <span key={i} className="coord-label">{i}</span>
+            <span key={i} className="coord-label">{i + 1}</span>
           ))}
         </div>
         <div
@@ -108,8 +110,12 @@ export default function Grid({ game, me, phase, onCellClick, onPlayerClick }: Pr
                   key={key}
                   className={cellClass(x, y, player)}
                   onClick={() => {
-                    if (player && !player.isMe) onPlayerClick(player);
-                    else onCellClick(x, y);
+                    if (player && !player.isMe && !player.isDowned) {
+                      if (phase === 'idle') setPopup(player);
+                      else onPlayerClick(player);
+                    } else {
+                      onCellClick(x, y);
+                    }
                   }}
                 >
                   {showRangeOverlay && <div className="range-overlay" />}
@@ -124,10 +130,10 @@ export default function Grid({ game, me, phase, onCellClick, onPlayerClick }: Pr
                     <div className="cell-player" style={{ '--pcolor': player.color } as React.CSSProperties}>
                       <div className="player-indicator" />
                       <span className="player-initial">{player.username.slice(0, 3).toUpperCase()}</span>
-                      <div className="cell-player-stats">
-                        <span className="cell-hearts">{'♥'.repeat(Math.min(player.hearts, 5))}</span>
-                        <span className="cell-range">◎{player.range}{player.isMe && player.ap !== null ? ` ⚡${player.ap}` : ''}</span>
+                      <div className="cell-health-bar">
+                        <div className="cell-health-fill" style={{ width: `${Math.max(0, (player.hearts / 3) * 100)}%` }} />
                       </div>
+                      <span className="cell-range-corner">{player.range}</span>
                     </div>
                   )}
 
@@ -153,6 +159,41 @@ export default function Grid({ game, me, phase, onCellClick, onPlayerClick }: Pr
           </>
         )}
       </div>
+
+      {/* Enemy tap popup */}
+      {popup && (
+        <div className="player-popup-overlay" onClick={() => setPopup(null)}>
+          <div className="player-popup" onClick={e => e.stopPropagation()}>
+            <div className="popup-header">
+              <span className="popup-dot" style={{ background: popup.color }} />
+              <span className="popup-name">{popup.username}</span>
+              {popup.isHaunted && <span className="tag tag-purple">HAUNTED</span>}
+              <button className="popup-close" onClick={() => setPopup(null)}>✕</button>
+            </div>
+            <div className="popup-stats tactical">
+              <div className="popup-stat">
+                <span className="popup-stat-label">HP</span>
+                <span className="popup-stat-value">
+                  {Array.from({ length: Math.min(popup.hearts, 5) }).map((_, i) => (
+                    <span key={i} className="popup-heart">♥</span>
+                  ))}
+                  {Array.from({ length: Math.max(0, 3 - popup.hearts) }).map((_, i) => (
+                    <span key={i} className="popup-heart empty">♡</span>
+                  ))}
+                </span>
+              </div>
+              <div className="popup-stat">
+                <span className="popup-stat-label">RANGE</span>
+                <span className="popup-stat-value">◎ {popup.range}</span>
+              </div>
+              <div className="popup-stat">
+                <span className="popup-stat-label">POS</span>
+                <span className="popup-stat-value">{COLS[popup.x]}{popup.y + 1}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
