@@ -242,11 +242,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: var(--sp-6) var(--sp-4);
-  gap: var(--sp-5);
-  text-align: center;
+  padding: var(--sp-4) 8px var(--sp-6);
+  gap: var(--sp-4);
   flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .waiting-header {
@@ -271,7 +271,6 @@
   flex-direction: column;
   gap: var(--sp-2);
   width: 100%;
-  max-width: 320px;
 }
 .waiting-list {
   display: flex;
