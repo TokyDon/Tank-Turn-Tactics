@@ -1,0 +1,227 @@
+/* ─── Design Tokens ────────────────────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --bg-canvas: #0d1117;
+  --bg-surface: #161b22;
+  --bg-elevated: #21262d;
+  --bg-overlay: #2d333b;
+
+  /* Borders */
+  --border-subtle: rgba(99, 110, 123, 0.2);
+  --border-default: rgba(99, 110, 123, 0.35);
+  --border-emphasis: rgba(99, 110, 123, 0.6);
+  --border-amber: rgba(212, 134, 10, 0.5);
+
+  /* Amber — command / action */
+  --amber: #d4860a;
+  --amber-bright: #f0a020;
+  --amber-dim: rgba(212, 134, 10, 0.12);
+  --amber-glow: rgba(212, 134, 10, 0.25);
+  --amber-text: #e8960e;
+
+  /* Red — damage / danger */
+  --red: #8b2020;
+  --red-bright: #cf2828;
+  --red-dim: rgba(207, 40, 40, 0.15);
+  --red-text: #f87171;
+
+  /* Green — alive / heal */
+  --green: #1e4d2b;
+  --green-bright: #22c55e;
+  --green-dim: rgba(34, 197, 94, 0.12);
+  --green-text: #4ade80;
+
+  /* Blue — info / range */
+  --blue-dim: rgba(59, 130, 246, 0.12);
+  --blue-text: #60a5fa;
+
+  /* Purple — jury */
+  --purple-dim: rgba(168, 85, 247, 0.12);
+  --purple-text: #c084fc;
+
+  /* Text */
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #484f58;
+  --text-amber: var(--amber-text);
+
+  /* Typography */
+  --font-tactical: 'Share Tech Mono', monospace;
+  --font-display: 'Rajdhani', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  /* Spacing scale */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* Borders */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Safe areas for mobile */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ─── Reset ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  height: 100%;
+  background: var(--bg-canvas);
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+body {
+  min-height: 100%;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-canvas);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Typography ─────────────────────────────────────────────────────────── */
+.tactical { font-family: var(--font-tactical); }
+.display  { font-family: var(--font-display); }
+
+/* ─── Global Components ──────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 10px var(--sp-5);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+
+.btn-amber {
+  background: var(--amber);
+  color: #0d1117;
+  border-color: var(--amber);
+}
+.btn-amber:hover:not(:disabled) { background: var(--amber-bright); border-color: var(--amber-bright); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--border-emphasis); color: var(--text-primary); }
+
+.btn-danger {
+  background: var(--red-dim);
+  color: var(--red-text);
+  border-color: var(--red);
+}
+.btn-danger:hover:not(:disabled) { background: rgba(207,40,40,0.25); }
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.btn-full { width: 100%; }
+
+/* Input */
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 15px;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-dim);
+}
+.input::placeholder { color: var(--text-muted); }
+
+/* Card */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+/* Tag / badge */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-family: var(--font-tactical);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.tag-amber { background: var(--amber-dim); color: var(--amber-text); border: 1px solid rgba(212,134,10,0.3); }
+.tag-red   { background: var(--red-dim);   color: var(--red-text);   border: 1px solid rgba(139,32,32,0.4); }
+.tag-green { background: var(--green-dim); color: var(--green-text); border: 1px solid rgba(30,77,43,0.5); }
+.tag-purple{ background: var(--purple-dim);color: var(--purple-text);border: 1px solid rgba(168,85,247,0.3);}
+.tag-muted { background: rgba(99,110,123,0.1); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+
+/* Error message */
+.error-msg {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--red-dim);
+  border: 1px solid var(--red);
+  border-radius: var(--radius-sm);
+  color: var(--red-text);
+  font-size: 13px;
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: var(--sp-4) 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 2px; }
+
+/* ─── Crosshatch grid texture ────────────────────────────────────────────── */
+.grid-texture {
+  background-image:
+    linear-gradient(rgba(99,110,123,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99,110,123,0.06) 1px, transparent 1px);
+  background-size: 20px 20px;
+}

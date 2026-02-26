@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+client/dist/
+server/dist/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+server/.env
+client/.env
+
+# Database (runtime data — do not commit)
+data/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/

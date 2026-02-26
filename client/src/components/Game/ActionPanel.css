@@ -1,0 +1,220 @@
+.action-panel {
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-3);
+}
+.panel-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+}
+.panel-ap {
+  font-size: 13px;
+  color: var(--amber-text);
+  letter-spacing: 0.06em;
+}
+
+.action-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.action-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.action-group-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-2);
+}
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--text-primary);
+  -webkit-tap-highlight-color: transparent;
+}
+.action-btn:hover:not(:disabled) {
+  border-color: var(--amber);
+  background: rgba(212,134,10,0.06);
+}
+.action-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.action-btn.danger:not(:disabled):hover {
+  border-color: var(--red-bright);
+  background: rgba(207,40,40,0.06);
+}
+.action-btn.green:not(:disabled):hover {
+  border-color: var(--green-bright);
+  background: rgba(34,197,94,0.06);
+}
+
+.action-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.action-label {
+  font-size: 8px;
+  font-family: var(--font-tactical);
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+.action-cost {
+  font-size: 8px;
+  color: var(--amber-text);
+  letter-spacing: 0.04em;
+}
+
+.idle-btn {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  border-style: dashed;
+}
+
+/* Selecting phase */
+.action-panel.selecting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+.selecting-hint {
+  font-size: 11px;
+  color: var(--amber-text);
+  letter-spacing: 0.1em;
+  animation: blink 1.2s step-end infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.ap-amount-row {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+/* Confirm phase */
+.action-panel.confirm-phase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.confirm-header {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+}
+.confirm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.confirm-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+}
+.confirm-label {
+  font-family: var(--font-tactical);
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+.confirm-value {
+  font-size: 12px;
+  color: var(--text-primary);
+  flex: 1;
+}
+.confirm-cost {
+  font-size: 11px;
+  color: var(--amber-text);
+  flex-shrink: 0;
+}
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--sp-2);
+}
+
+/* Optional secondary in confirm */
+.confirm-secondary-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.02);
+}
+.confirm-secondary-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+.confirm-secondary-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+}
+
+/* Acted state */
+.action-panel.acted {
+  padding: var(--sp-3) var(--sp-4);
+}
+.acted-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.acted-waiting {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+.panel-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: var(--sp-2) 0;
+}

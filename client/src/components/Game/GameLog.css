@@ -1,0 +1,95 @@
+.game-log {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.log-header {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  padding: var(--sp-3) var(--sp-4) var(--sp-2);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.log-entries {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-2) var(--sp-4) var(--sp-4);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1px;
+}
+
+.log-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: var(--sp-6) 0;
+}
+
+.log-entry {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.log-entry:hover {
+  background: var(--bg-elevated);
+}
+
+.log-icon {
+  width: 16px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.log-message {
+  flex: 1;
+}
+.log-turn {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* Type-specific colors */
+.log-attack .log-icon { color: var(--red-bright); }
+.log-attack .log-message { color: var(--red-text); }
+.log-attack { background: rgba(139, 32, 32, 0.04); }
+
+.log-revive .log-icon { color: var(--green-bright); }
+.log-revive .log-message { color: var(--green-bright); }
+
+.log-loot .log-icon { color: var(--amber); }
+.log-loot .log-message { color: var(--amber-text); }
+
+.log-gift .log-icon { color: #8b5cf6; }
+.log-gift .log-message { color: #a78bfa; }
+
+.log-jury .log-icon { color: #8b5cf6; }
+.log-jury .log-message { color: #7c3aed; }
+.log-jury { background: rgba(124, 58, 237, 0.04); }
+
+.log-spawn .log-icon { color: var(--amber-bright); }
+
+.log-end .log-icon { color: var(--amber-bright); }
+.log-end .log-message { 
+  color: var(--amber-text);
+  font-weight: 600;
+}
+.log-end {
+  background: rgba(212, 134, 10, 0.06);
+}
+
+.log-shrink .log-icon { color: #ef4444; }
+.log-shrink .log-message { color: #f87171; }

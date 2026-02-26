@@ -1,0 +1,106 @@
+.jury-panel {
+  margin: var(--sp-4);
+}
+
+.jury-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.jury-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+.jury-votes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.jury-vote-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.jury-vote-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.jury-hint {
+  color: var(--text-muted);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.jury-targets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.jury-target-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: left;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.jury-target-btn:hover {
+  border-color: var(--border-emphasis);
+  color: var(--text-primary);
+}
+.jury-target-btn.selected.haunt {
+  border-color: var(--red-bright);
+  background: rgba(207, 40, 40, 0.08);
+  color: var(--red-text);
+}
+.jury-target-btn.selected.intercede {
+  border-color: var(--green-bright);
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--green-bright);
+}
+
+.jury-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+/* Voted state */
+.jury-voted {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.jury-voted > p {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+.jury-vote-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  font-size: 13px;
+  color: var(--text-primary);
+}

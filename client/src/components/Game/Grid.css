@@ -1,0 +1,290 @@
+.grid-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--sp-3) var(--sp-3) 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.grid-coords-x {
+  display: flex;
+  margin-left: 16px;
+  padding-left: 2px;
+}
+
+.grid-row-wrapper {
+  display: flex;
+  align-items: flex-start;
+}
+
+.grid-coords-y {
+  display: flex;
+  flex-direction: column;
+  width: 16px;
+}
+
+.coord-label {
+  font-size: 8px;
+  color: var(--text-muted);
+  letter-spacing: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.grid-coords-x .coord-label {
+  width: calc(min(100vw - 56px, 560px) * var(--cell-scale, 1) / var(--grid-size, 16));
+  height: 12px;
+}
+.grid-coords-y .coord-label {
+  height: calc(min(100vw - 56px, 560px) * var(--cell-scale, 1) / var(--grid-size, 16));
+}
+
+/* The board */
+.grid-board {
+  --cell-px: calc(min(calc(100vw - 56px), 560px) * var(--cell-scale, 1) / var(--grid-size, 16));
+  display: grid;
+  grid-template-columns: repeat(var(--grid-size, 16), 1fr);
+  width: calc(min(calc(100vw - 56px), 560px) * var(--cell-scale, 1));
+  height: calc(min(calc(100vw - 56px), 560px) * var(--cell-scale, 1));
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-canvas);
+  background-image:
+    linear-gradient(rgba(99,110,123,0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99,110,123,0.08) 1px, transparent 1px);
+  background-size:
+    calc(100% / var(--grid-size, 16)) calc(100% / var(--grid-size, 16));
+}
+
+/* Cells */
+.grid-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid rgba(99,110,123,0.12);
+  cursor: pointer;
+  transition: background 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.grid-cell:hover {
+  background: rgba(99,110,123,0.08);
+}
+
+/* Range overlay — amber glow */
+.range-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--amber-dim);
+  pointer-events: none;
+  animation: range-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes range-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Move target */
+.cell-move-target {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.3) !important;
+  cursor: crosshair;
+}
+.cell-move-target:hover {
+  background: rgba(34, 197, 94, 0.2);
+}
+
+/* Attack / gift target */
+.cell-attack-target {
+  background: rgba(207, 40, 40, 0.08);
+  border-color: rgba(207, 40, 40, 0.3) !important;
+  cursor: crosshair;
+}
+.cell-attack-target:hover {
+  background: rgba(207, 40, 40, 0.2);
+}
+
+/* Self cell */
+.cell-self {
+  background: rgba(212, 134, 10, 0.08);
+}
+
+/* Player indicator */
+.cell-player {
+  position: absolute;
+  inset: 1px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1px;
+  gap: 0;
+}
+
+.player-indicator {
+  position: absolute;
+  inset: 1px;
+  border-radius: 1px;
+  background: var(--pcolor);
+  opacity: 0.25;
+}
+
+.player-initial {
+  font-family: var(--font-display);
+  font-size: max(5px, calc(var(--cell-px, 20px) * 0.38));
+  font-weight: 700;
+  color: var(--pcolor);
+  position: relative;
+  z-index: 1;
+  line-height: 1;
+  filter: drop-shadow(0 0 4px var(--pcolor));
+  letter-spacing: -0.03em;
+}
+
+.cell-me .player-initial {
+  font-size: max(6px, calc(var(--cell-px, 20px) * 0.44));
+}
+.cell-me .player-indicator {
+  opacity: 0.4;
+  border: 1px solid var(--pcolor);
+}
+
+/* Downed marker */
+.cell-downed-marker {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.5);
+}
+
+.downed-cross {
+  font-size: 8px;
+  color: var(--pcolor);
+  opacity: 0.7;
+}
+
+/* Board items */
+.cell-item {
+  font-size: 9px;
+  line-height: 1;
+  animation: item-pulse 3s ease-in-out infinite;
+}
+.cell-item.heart {
+  color: var(--red-text);
+  filter: drop-shadow(0 0 3px var(--red-bright));
+}
+.cell-item.loot {
+  color: var(--amber-text);
+  filter: drop-shadow(0 0 3px var(--amber));
+}
+
+@keyframes item-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.7; }
+}
+
+/* Player stats inside cell */
+.cell-player-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.cell-hearts {
+  font-size: max(3px, calc(var(--cell-px, 20px) * 0.20));
+  color: var(--red-text);
+  letter-spacing: -1px;
+  filter: drop-shadow(0 0 2px rgba(207,40,40,0.5));
+  line-height: 1;
+}
+
+.cell-range {
+  font-family: var(--font-tactical);
+  font-size: max(3px, calc(var(--cell-px, 20px) * 0.17));
+  color: rgba(160,170,180,0.8);
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+/* Zoom controls */
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: 16px;
+  margin-bottom: var(--sp-1);
+}
+
+.zoom-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  width: 28px;
+  height: 24px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, border-color 0.1s;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zoom-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--amber);
+  color: var(--amber-text);
+}
+
+.zoom-label {
+  font-family: var(--font-tactical);
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  min-width: 32px;
+  text-align: center;
+}
+
+/* Legend */
+.grid-legend {
+  display: flex;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0 var(--sp-3);
+  margin-left: 16px;
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  flex-wrap: wrap;
+}
+.grid-legend span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  display: inline-block;
+}
+.legend-dot.me     { background: var(--amber); opacity: 0.6; }
+.legend-dot.enemy  { background: #ef4444; opacity: 0.6; }
+.legend-dot.range  { background: var(--amber-dim); border: 1px solid rgba(212,134,10,0.3); }
+
+.legend-item { font-size: 9px; }
+.legend-item.heart { color: var(--red-text); }
+.legend-item.loot  { color: var(--amber-text); }

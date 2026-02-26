@@ -1,0 +1,102 @@
+.player-status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  min-height: 52px;
+  transition: background 0.2s;
+}
+
+.player-status-bar.can-act {
+  background: rgba(212, 134, 10, 0.06);
+  border-bottom-color: rgba(212, 134, 10, 0.25);
+}
+
+.player-status-bar.downed {
+  background: rgba(139, 32, 32, 0.08);
+  border-bottom-color: rgba(139, 32, 32, 0.3);
+}
+
+.status-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.status-callsign {
+  font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  letter-spacing: 0.04em;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.status-hearts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.status-heart {
+  font-size: 13px;
+  line-height: 1;
+}
+.status-heart.filled {
+  color: var(--red-bright);
+  filter: drop-shadow(0 0 3px rgba(207,40,40,0.6));
+}
+.status-heart.empty {
+  color: var(--border-default);
+}
+.status-heart-bonus {
+  font-size: 9px;
+  color: var(--red-text);
+  letter-spacing: 0.04em;
+  margin-left: 2px;
+}
+
+.status-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.status-your-turn {
+  font-family: var(--font-tactical);
+  font-size: 11px;
+  color: var(--amber-bright);
+  letter-spacing: 0.1em;
+  animation: blink-amber 1s step-end infinite;
+}
+@keyframes blink-amber {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.status-waiting-info {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.status-waiting-count {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+}
+
+.status-stats {
+  display: flex;
+  gap: var(--sp-3);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+.stat-ap { color: var(--amber-text); }
