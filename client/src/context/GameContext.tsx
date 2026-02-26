@@ -10,7 +10,7 @@ interface GameContextValue {
   loading: boolean;
   error: string | null;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
+  register: (username: string, password: string) => Promise<string[]>;
   logout: () => void;
   loadGame: (id: string) => Promise<void>;
   clearGame: () => void;
@@ -86,14 +86,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (username: string, password: string) => {
+  const register = useCallback(async (username: string, password: string): Promise<string[]> => {
     setLoading(true);
     setError(null);
     try {
-      const { token: t, user: u } = await api.register(username, password);
+      const { token: t, user: u, recoveryCodes } = await api.register(username, password);
       localStorage.setItem('ttt_token', t);
       setToken(t);
       setUser(u);
+      return recoveryCodes;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed');
       throw err;

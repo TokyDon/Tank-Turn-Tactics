@@ -2,6 +2,17 @@ import type { GameState, PublicGame, PrimaryAction, SecondaryAction } from '../t
 
 const BASE = '/api';
 
+/** Structured API error — carries the full JSON response body so callers can
+ *  inspect extra fields (e.g. `suggestions` on a 409 username conflict). */
+export class ApiError extends Error {
+  data: Record<string, unknown>;
+  constructor(message: string, data: Record<string, unknown> = {}) {
+    super(message);
+    this.name = 'ApiError';
+    this.data = data;
+  }
+}
+
 function getToken(): string | null {
   return localStorage.getItem('ttt_token');
 }
@@ -17,13 +28,13 @@ function headers(): HeadersInit {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { ...options, headers: headers() });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  if (!res.ok) throw new ApiError(data.error || 'Request failed', data);
   return data as T;
 }
 
 // Auth
 export const register = (username: string, password: string) =>
-  request<{ token: string; user: { id: string; username: string } }>('/auth/register', {
+  request<{ token: string; user: { id: string; username: string }; recoveryCodes: string[] }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify({ username, password })
   });
@@ -36,6 +47,12 @@ export const login = (username: string, password: string) =>
 
 export const getMe = () =>
   request<{ user: { id: string; username: string } }>('/auth/me');
+
+export const recoverAccount = (username: string, code: string, newPassword: string) =>
+  request<{ token: string; user: { id: string; username: string } }>('/auth/recover', {
+    method: 'POST',
+    body: JSON.stringify({ username, code, newPassword })
+  });
 
 // Games
 export const getGames = () =>

@@ -98,3 +98,135 @@
   color: var(--text-muted);
   letter-spacing: 0.1em;
 }
+
+/* ── Username suggestions ──────────────────────────────── */
+.suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.suggestion-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.suggestion-chip {
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--amber);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-tactical);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--amber-text);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.suggestion-chip:hover {
+  background: var(--amber);
+  color: var(--bg-base);
+}
+
+/* ── Recover link (bottom of login form) ──────────────── */
+.recover-link {
+  background: none;
+  border: none;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: center;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.15s;
+}
+.recover-link:hover {
+  color: var(--amber-text);
+}
+
+.register-hint {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0;
+}
+
+/* ── Recovery codes card ───────────────────────────────── */
+.codes-card {
+  max-width: 420px;
+  width: 100%;
+}
+
+.codes-header {
+  padding: var(--sp-5) var(--sp-5) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.codes-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--amber-text);
+}
+
+.codes-desc {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.codes-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-5);
+}
+
+.code-chip {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--amber-text);
+  text-align: center;
+  user-select: all;
+  background: var(--bg-card-alt, rgba(0,0,0,0.3));
+}
+
+.codes-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-5) var(--sp-5);
+}
+
+/* ── Account recovery form extras ─────────────────────── */
+.recover-header {
+  padding: var(--sp-4) var(--sp-5) 0;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.code-input {
+  font-family: var(--font-tactical);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.form-hint {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}

@@ -15,6 +15,9 @@ db.exec(`
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE NOT NULL COLLATE NOCASE,
     password_hash TEXT NOT NULL,
+    email TEXT DEFAULT NULL,
+    email_verified INTEGER DEFAULT 0,
+    recovery_codes TEXT DEFAULT NULL,
     is_bot INTEGER DEFAULT 0,
     bot_difficulty TEXT DEFAULT NULL,
     created_at INTEGER DEFAULT (unixepoch())
@@ -117,6 +120,10 @@ const migrations = [
   'ALTER TABLE game_players ADD COLUMN is_bot INTEGER DEFAULT 0',
   'ALTER TABLE game_players ADD COLUMN bot_difficulty TEXT DEFAULT NULL',
   'ALTER TABLE game_players ADD COLUMN bot_act_after INTEGER DEFAULT NULL',
+  // Option-B ready: email fields (nullable, unused until email feature added)
+  'ALTER TABLE users ADD COLUMN email TEXT DEFAULT NULL',
+  'ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN recovery_codes TEXT DEFAULT NULL',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch { /* column already exists */ }
