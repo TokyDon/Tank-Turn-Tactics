@@ -2,6 +2,9 @@
   "name": "tank-turn-tactics-server",
   "version": "1.0.0",
   "main": "src/index.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
