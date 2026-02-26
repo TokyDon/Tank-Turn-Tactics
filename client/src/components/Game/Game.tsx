@@ -27,6 +27,7 @@ export default function Game({ onLeave }: Props) {
   const [error, setError] = useState('');
   const [botDifficulty, setBotDifficulty] = useState<'private' | 'major' | 'general'>('private');
   const [addingBot, setAddingBot] = useState(false);
+  const [forcingTurn, setForcingTurn] = useState(false);
   const [tab, setTab] = useState<'grid' | 'log' | 'players'>('grid');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -98,6 +99,19 @@ export default function Game({ onLeave }: Props) {
     }
   }
 
+  async function handleForceTurn() {
+    if (!game) return;
+    setForcingTurn(true);
+    try {
+      await api.forceAdvanceTurn(game.id);
+      await refreshGame();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setForcingTurn(false);
+    }
+  }
+
   function handleCellClick(x: number, y: number) {
     if (!me || me.isDowned || me.hasTakenTurn) return;
     if (phase === 'select-move') {
@@ -158,13 +172,23 @@ export default function Game({ onLeave }: Props) {
           {game.status === 'active' && turnTimeLeft !== null && (
             <span className="turn-timer tactical">{formatTime(turnTimeLeft)}</span>
           )}
+          {user.username === 'james' && game.status === 'active' && (
+            <button
+              className="btn btn-danger btn-sm"
+              onClick={handleForceTurn}
+              disabled={forcingTurn}
+              style={{ fontSize: '10px', padding: '4px 8px', marginLeft: '4px' }}
+            >
+              {forcingTurn ? '...' : '⚡ NEXT'}
+            </button>
+          )}
           {game.status === 'lobby' && <span className="tag tag-green">LOBBY</span>}
           {game.status === 'ended' && <span className="tag tag-muted">ENDED</span>}
         </div>
       </header>
 
-      {/* My status bar */}
-      {me && <PlayerStatus player={me} canAct={!!canAct} allActed={allActed} pendingCount={pendingCount} />}
+      {/* My status bar — only shown during active game, not in lobby */}
+      {me && game.status === 'active' && <PlayerStatus player={me} canAct={!!canAct} allActed={allActed} pendingCount={pendingCount} />}
 
       {/* Error toast — fixed overlay, auto-dismisses */}
       {error && (

@@ -97,3 +97,6 @@ export const addBot = (gameId: string, difficulty: 'private' | 'major' | 'genera
     method: 'POST',
     body: JSON.stringify({ difficulty })
   });
+
+export const forceAdvanceTurn = (gameId: string) =>
+  request<{ game: GameState }>(`/games/${gameId}/admin/force-turn`, { method: 'POST' });

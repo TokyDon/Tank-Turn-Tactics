@@ -224,13 +224,20 @@
   z-index: 2;
 }
 
-/* Zoom controls */
+/* Zoom controls — sticky so they stay visible when scrolling the map */
 .zoom-controls {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   margin-left: 16px;
   margin-bottom: var(--sp-1);
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-canvas);
+  padding: var(--sp-1) 0;
+  align-self: flex-start;
 }
 
 .zoom-btn {
