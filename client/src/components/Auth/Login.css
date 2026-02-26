@@ -3,17 +3,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--sp-5);
-  padding-top: calc(var(--sp-5) + var(--safe-top));
-  padding-bottom: calc(var(--sp-5) + var(--safe-bottom));
+  padding: var(--sp-4);
+  padding-top: calc(var(--sp-4) + var(--safe-top));
+  padding-bottom: calc(var(--sp-4) + var(--safe-bottom));
 }
 
 .login-content {
   width: 100%;
-  max-width: 380px;
+  max-width: 420px;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-6);
+  gap: var(--sp-5);
 }
 
 .login-header {

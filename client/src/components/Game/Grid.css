@@ -33,20 +33,20 @@
   justify-content: center;
 }
 .grid-coords-x .coord-label {
-  width: calc(min(100vw - 56px, 560px) * var(--cell-scale, 1) / var(--grid-size, 16));
+  width: calc(min(100vw - 40px, 560px) * var(--cell-scale, 1) / var(--grid-size, 16));
   height: 12px;
 }
 .grid-coords-y .coord-label {
-  height: calc(min(100vw - 56px, 560px) * var(--cell-scale, 1) / var(--grid-size, 16));
+  height: calc(min(100vw - 40px, 560px) * var(--cell-scale, 1) / var(--grid-size, 16));
 }
 
 /* The board */
 .grid-board {
-  --cell-px: calc(min(calc(100vw - 56px), 560px) * var(--cell-scale, 1) / var(--grid-size, 16));
+  --cell-px: calc(min(calc(100vw - 40px), 560px) * var(--cell-scale, 1) / var(--grid-size, 16));
   display: grid;
   grid-template-columns: repeat(var(--grid-size, 16), 1fr);
-  width: calc(min(calc(100vw - 56px), 560px) * var(--cell-scale, 1));
-  height: calc(min(calc(100vw - 56px), 560px) * var(--cell-scale, 1));
+  width: calc(min(calc(100vw - 40px), 560px) * var(--cell-scale, 1));
+  height: calc(min(calc(100vw - 40px), 560px) * var(--cell-scale, 1));
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   overflow: hidden;
