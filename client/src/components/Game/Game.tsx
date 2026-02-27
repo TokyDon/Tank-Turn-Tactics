@@ -173,6 +173,11 @@ export default function Game({ onLeave }: Props) {
       setPhase('confirm');
     }
     if (phase === 'select-secondary' && pendingSecondaryAction) {
+      const dist = Math.max(Math.abs(target.x - me.x), Math.abs(target.y - me.y));
+      if (dist > me.range) {
+        showToast(`OUT OF RANGE — ${dist} TILES AWAY (◎${me.range})`);
+        return;
+      }
       submitSecondary({ ...pendingSecondaryAction, targetUserId: target.userId });
     }
   }
@@ -198,11 +203,15 @@ export default function Game({ onLeave }: Props) {
 
   // Players valid for secondary targeting — used to highlight grid cells
   const secondaryTargetIds: Set<string> = (() => {
-    if (phase !== 'select-secondary' || !pendingSecondaryAction) return new Set<string>();
+    if (phase !== 'select-secondary' || !pendingSecondaryAction || !me) return new Set<string>();
     const targets = pendingSecondaryAction.type === 'giveHeart'
       ? game.players.filter(p => !p.isMe && (!p.isDowned || p.canRevive))
       : game.players.filter(p => !p.isMe && !p.isDowned);
-    return new Set(targets.map(p => p.userId));
+    return new Set(
+      targets
+        .filter(p => Math.max(Math.abs(p.x - me.x), Math.abs(p.y - me.y)) <= me.range)
+        .map(p => p.userId)
+    );
   })();
   const turnTimeLeft = game.turnStartedAt
     ? Math.max(0, 24 * 60 * 60 - (Date.now() / 1000 - game.turnStartedAt))

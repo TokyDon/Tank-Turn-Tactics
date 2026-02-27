@@ -106,7 +106,8 @@ export default function Grid({ game, me, phase, secondaryTargetIds = new Set(), 
               const player = playerAt.get(key);
               const item = itemAt.get(key);
               const isInRange = rangeSet.has(key);
-              const showRangeOverlay = !!me && !me.isDowned && !me.hasTakenTurn && isInRange && phase === 'idle';
+              const showRangeOverlay = !!me && !me.isDowned && !me.hasTakenTurn && isInRange &&
+                (phase === 'idle' || phase === 'select-secondary');
 
               return (
                 <div

@@ -132,8 +132,8 @@ export default function ActionPanel({
   // Select secondary target on the grid
   if (phase === 'select-secondary') {
     const hint = pendingSecondaryAction?.type === 'giveHeart'
-      ? 'SEND ♥ — TAP A PLAYER ON THE MAP'
-      : `SEND ${pendingSecondaryAction?.amount ?? 1} AP — TAP A PLAYER ON THE MAP`;
+      ? `GIVE ♥ — TAP A PLAYER WITHIN RANGE ◎${me.range}`
+      : `SEND ${pendingSecondaryAction?.amount ?? 1} AP — TAP A PLAYER WITHIN RANGE ◎${me.range}`;
     return (
       <div className="action-panel selecting">
         <div className="selecting-hint tactical">{hint}</div>
@@ -171,7 +171,7 @@ export default function ActionPanel({
         <div className="action-group">
           <span className="action-group-label tactical">
             {hasTakenPrimary ? '✓ PRIMARY COMPLETE' : 'PRIMARY'}
-            <span className="group-ap tactical"> ⚡ {ap} AP</span>
+            <span className="group-ap tactical">◎ {me.range} &nbsp;⚡ {ap} AP</span>
           </span>
           <div className="action-grid">
             <ActionButton
