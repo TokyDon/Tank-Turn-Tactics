@@ -12,17 +12,16 @@ import './Game.css';
 interface Props { onLeave: () => void; }
 
 export type Phase =
-  | 'idle'          // no action selected
+  | 'idle'          // no action selected yet
   | 'select-move'   // picking a cell to move to
   | 'select-attack' // picking a player to attack
-  | 'confirm';      // reviewing before submitting
+  | 'confirm'       // reviewing primary before submitting
+  | 'secondary';    // primary done — optionally pick secondary action
 
 export default function Game({ onLeave }: Props) {
   const { game, user, refreshGame, clearGame } = useGame();
   const [phase, setPhase] = useState<Phase>('idle');
   const [pendingPrimary, setPendingPrimary] = useState<PrimaryAction | null>(null);
-  const [pendingSecondary, setPendingSecondary] = useState<SecondaryAction | null>(null);
-  const [giftAmount, setGiftAmount] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [botDifficulty, setBotDifficulty] = useState<'private' | 'major' | 'general'>('private');
@@ -42,6 +41,13 @@ export default function Game({ onLeave }: Props) {
     toastTimer.current = setTimeout(() => setError(''), duration);
   }
 
+  // If the player has submitted primary but not secondary (e.g. after a page reload), jump to secondary phase
+  useEffect(() => {
+    if (me?.hasTakenPrimary && !me?.hasTakenTurn && phase === 'idle') {
+      setPhase('secondary');
+    }
+  }, [me?.hasTakenPrimary, me?.hasTakenTurn, phase]);
+
   if (!game || !user) return null;
 
   const me = game.players.find(p => p.userId === user.id);
@@ -50,16 +56,29 @@ export default function Game({ onLeave }: Props) {
   const allActed = activePlayers.every(p => p.hasTakenTurn);
   const pendingCount = activePlayers.filter(p => !p.hasTakenTurn).length;
 
-  async function submitAction() {
+  async function submitPrimary() {
+    if (!game || !pendingPrimary) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await api.takePrimaryAction(game.id, pendingPrimary);
+      await refreshGame();
+      setPendingPrimary(null);
+      setPhase('secondary');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitSecondary(sa: SecondaryAction | null) {
     if (!game) return;
     setSubmitting(true);
     setError('');
     try {
-      const primary = pendingPrimary ?? { type: 'idle' as const };
-      await api.takeAction(game.id, primary, pendingSecondary || undefined);
+      await api.takeSecondaryAction(game.id, sa);
       await refreshGame();
-      setPendingPrimary(null);
-      setPendingSecondary(null);
       setPhase('idle');
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : 'Action failed');
@@ -134,11 +153,13 @@ export default function Game({ onLeave }: Props) {
   }
 
   function cancelAction() {
-    setPendingPrimary(null);
-    setPendingSecondary(null);
-    setPhase('idle');
-    setError('');
-    if (toastTimer.current) clearTimeout(toastTimer.current);
+    // Only cancel if primary hasn't been submitted yet
+    if (!me?.hasTakenPrimary) {
+      setPendingPrimary(null);
+      setPhase('idle');
+      setError('');
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    }
   }
 
   const canAct = me && !me.isDowned && !me.hasTakenTurn && game.status === 'active';
@@ -303,6 +324,7 @@ export default function Game({ onLeave }: Props) {
                         {p.isMe && <span className="tag tag-amber">YOU</span>}
                         {p.isDowned && <span className="tag tag-red">KIA</span>}
                         {p.hasTakenTurn && !p.isDowned && <span className="tag tag-muted">ACTED</span>}
+                        {p.hasTakenPrimary && !p.hasTakenTurn && !p.isDowned && <span className="tag tag-amber">PRI ✓</span>}
                         {p.isHaunted && <span className="tag tag-purple">HAUNTED</span>}
                         {p.isBot && (
                           <span className={`tag bot-tag diff-${p.botDifficulty}`}>
@@ -343,15 +365,12 @@ export default function Game({ onLeave }: Props) {
               game={game}
               phase={phase}
               pendingPrimary={pendingPrimary}
-              pendingSecondary={pendingSecondary}
-              giftAmount={giftAmount}
               submitting={submitting}
               canAct={!!canAct}
               setPhase={setPhase}
               setPendingPrimary={setPendingPrimary}
-              setPendingSecondary={setPendingSecondary}
-              setGiftAmount={setGiftAmount}
-              onSubmit={submitAction}
+              onSubmitPrimary={submitPrimary}
+              onSubmitSecondary={submitSecondary}
               onCancel={cancelAction}
             />
           )}

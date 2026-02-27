@@ -76,6 +76,25 @@ export const startGame = (id: string) =>
   request<{ game: GameState }>(`/games/${id}/start`, { method: 'POST' });
 
 // Actions
+export const takePrimaryAction = (
+  gameId: string,
+  primaryAction: PrimaryAction
+) =>
+  request<{ game: GameState }>(`/games/${gameId}/primary-action`, {
+    method: 'POST',
+    body: JSON.stringify({ primaryAction })
+  });
+
+export const takeSecondaryAction = (
+  gameId: string,
+  secondaryAction: SecondaryAction | null
+) =>
+  request<{ game: GameState }>(`/games/${gameId}/secondary-action`, {
+    method: 'POST',
+    body: JSON.stringify({ secondaryAction: secondaryAction || { type: 'idle' } })
+  });
+
+// Legacy combined action (kept for compatibility)
 export const takeAction = (
   gameId: string,
   primaryAction: PrimaryAction,

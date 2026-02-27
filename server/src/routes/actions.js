@@ -1,6 +1,6 @@
 const express = require('express');
 const { authMiddleware } = require('../middleware/auth');
-const { takeAction, submitJuryVote, getGameState, endTurn } = require('../game/logic');
+const { takeAction, takePrimaryAction, takeSecondaryAction, submitJuryVote, getGameState, endTurn } = require('../game/logic');
 const { broadcastGameUpdate } = require('../game/scheduler');
 const db = require('../db');
 
@@ -13,6 +13,30 @@ router.post('/:id/action', authMiddleware, (req, res) => {
   const { primaryAction, secondaryAction } = req.body;
   try {
     const state = takeAction(req.params.id, req.userId, primaryAction, secondaryAction);
+    broadcastGameUpdate(req.params.id);
+    res.json({ game: state });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Two-phase turn: submit primary action (phase 1)
+router.post('/:id/primary-action', authMiddleware, (req, res) => {
+  const { primaryAction } = req.body;
+  try {
+    const state = takePrimaryAction(req.params.id, req.userId, primaryAction);
+    broadcastGameUpdate(req.params.id);
+    res.json({ game: state });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Two-phase turn: submit secondary action (phase 2) — also used to skip secondary
+router.post('/:id/secondary-action', authMiddleware, (req, res) => {
+  const { secondaryAction } = req.body;
+  try {
+    const state = takeSecondaryAction(req.params.id, req.userId, secondaryAction);
     broadcastGameUpdate(req.params.id);
     res.json({ game: state });
   } catch (err) {

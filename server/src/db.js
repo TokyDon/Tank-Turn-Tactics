@@ -126,6 +126,8 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN email TEXT DEFAULT NULL',
   'ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0',
   'ALTER TABLE users ADD COLUMN recovery_codes TEXT DEFAULT NULL',
+  // Two-phase turn: track primary separately from full-turn completion
+  'ALTER TABLE game_players ADD COLUMN has_taken_primary INTEGER DEFAULT 0',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch { /* column already exists */ }

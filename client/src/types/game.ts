@@ -22,6 +22,7 @@ export interface GamePlayer {
   range: number;
   isDowned: boolean;
   canRevive: boolean;
+  hasTakenPrimary: boolean;
   hasTakenTurn: boolean;
   isHaunted: boolean;
   color: string;

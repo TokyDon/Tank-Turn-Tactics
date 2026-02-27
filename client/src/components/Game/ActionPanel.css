@@ -202,6 +202,22 @@
   gap: var(--sp-2);
 }
 
+/* Secondary phase (after primary submitted) */
+.action-panel.secondary-phase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.secondary-phase-header {
+  font-size: 11px;
+  color: var(--amber-text);
+  letter-spacing: 0.08em;
+  padding: var(--sp-2) var(--sp-3);
+  background: rgba(212, 134, 10, 0.08);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(212, 134, 10, 0.25);
+}
+
 /* Acted state */
 .action-panel.acted {
   padding: var(--sp-3) var(--sp-4);

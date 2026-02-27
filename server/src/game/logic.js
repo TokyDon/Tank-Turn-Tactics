@@ -145,7 +145,9 @@ function startGame(gameId, userId) {
 
 // ─── Actions ────────────────────────────────────────────────────────────────
 
-function takeAction(gameId, userId, primaryAction, secondaryAction) {
+// ─── Primary Action (phase 1 of turn) ───────────────────────────────────────
+
+function takePrimaryAction(gameId, userId, primaryAction) {
   const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
   if (!game) throw new Error('Game not found');
   if (game.status !== 'active') throw new Error('Game is not active');
@@ -153,11 +155,9 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
   const player = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
   if (!player) throw new Error('Not in this game');
   if (player.is_downed) throw new Error('You are downed — you cannot take actions');
-  if (player.has_taken_turn) throw new Error('You already acted this turn');
+  if (player.has_taken_primary) throw new Error('You already submitted your primary action this turn');
 
   const logs = [];
-
-  // ── Primary Action ──
   const pa = primaryAction || { type: 'idle' };
   let apCost = 0;
 
@@ -171,8 +171,6 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
     db.prepare('UPDATE game_players SET x=?, y=? WHERE game_id=? AND user_id=?')
       .run(x, y, gameId, userId);
     logs.push({ type: 'action', msg: `${player.username} moved to [${x},${y}]` });
-
-    // Check items at new position
     collectItems(gameId, userId, player, x, y, logs);
 
   } else if (pa.type === 'attack') {
@@ -184,7 +182,6 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
 
     const newHearts = (target.hearts - 1);
     if (newHearts <= 0 && target.extra_hearts <= 0) {
-      // Downed
       const targetTotalAp = target.ap;
       db.prepare('UPDATE game_players SET hearts=0, extra_hearts=0, is_downed=1, ap=0 WHERE game_id=? AND user_id=?')
         .run(gameId, target.user_id);
@@ -224,11 +221,170 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
     throw new Error('Invalid action type');
   }
 
-  // Deduct AP for primary action
   if (player.ap < apCost) throw new Error(`Need ${apCost} AP`);
   db.prepare('UPDATE game_players SET ap=ap-? WHERE game_id=? AND user_id=?').run(apCost, gameId, userId);
 
-  // ── Secondary Action ──
+  db.prepare('UPDATE game_players SET has_taken_primary=1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+
+  for (const l of logs) {
+    addLog(gameId, game.current_turn, l.type, l.msg, l);
+  }
+
+  db.prepare(
+    'INSERT INTO turn_actions (id, game_id, turn_num, player_id, action_type, action_data) VALUES (?,?,?,?,?,?)'
+  ).run(uuidv4(), gameId, game.current_turn, player.id, pa.type, JSON.stringify({ pa }));
+
+  return getGameState(gameId, userId);
+}
+
+// ─── Secondary Action (phase 2 of turn — optional) ──────────────────────────
+
+function takeSecondaryAction(gameId, userId, secondaryAction) {
+  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+  if (!game) throw new Error('Game not found');
+  if (game.status !== 'active') throw new Error('Game is not active');
+
+  const player = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
+  if (!player) throw new Error('Not in this game');
+  if (player.is_downed) throw new Error('You are downed — you cannot take actions');
+  if (!player.has_taken_primary) throw new Error('Submit your primary action first');
+  if (player.has_taken_turn) throw new Error('You already completed your turn');
+
+  const logs = [];
+  const sa = secondaryAction || { type: 'idle' };
+
+  if (sa.type === 'giveHeart') {
+    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, sa.targetUserId);
+    if (!target) throw new Error('Target not found');
+    if (!inRange(player, target.x, target.y)) throw new Error('Target not in range');
+
+    if (target.is_downed) {
+      if (!target.can_revive) throw new Error('This commander cannot be revived');
+      db.prepare('UPDATE game_players SET is_downed=0, hearts=1, ap=1 WHERE game_id=? AND user_id=?')
+        .run(gameId, target.user_id);
+      logs.push({ type: 'revive', msg: `${player.username} revived ${target.username} from the dead!`, target: target.username });
+    } else {
+      if (player.hearts <= 0) throw new Error('No hearts to give');
+      const fromNew = player.hearts - 1;
+      db.prepare('UPDATE game_players SET hearts=? WHERE game_id=? AND user_id=?').run(fromNew < 0 ? 0 : fromNew, gameId, userId);
+      if (target.hearts >= 3) {
+        db.prepare('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=? AND user_id=?').run(gameId, target.user_id);
+      } else {
+        db.prepare('UPDATE game_players SET hearts=hearts+1 WHERE game_id=? AND user_id=?').run(gameId, target.user_id);
+      }
+      logs.push({ type: 'gift', msg: `${player.username} gave a ♥ to ${target.username}`, target: target.username });
+    }
+
+  } else if (sa.type === 'giveAP') {
+    const amount = Math.min(3, Math.max(1, sa.amount || 1));
+    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, sa.targetUserId);
+    if (!target) throw new Error('Target not found');
+    if (!inRange(player, target.x, target.y)) throw new Error('Target not in range');
+    if (player.ap < amount) throw new Error(`Need ${amount} AP to give`);
+
+    db.prepare('UPDATE game_players SET ap=ap-? WHERE game_id=? AND user_id=?').run(amount, gameId, userId);
+    db.prepare('UPDATE game_players SET ap=ap+? WHERE game_id=? AND user_id=?').run(amount, gameId, target.user_id);
+    logs.push({ type: 'gift', msg: `${player.username} transferred ${amount} AP to ${target.username}`, target: target.username });
+  }
+  // sa.type === 'idle': no action, just end the turn
+
+  db.prepare('UPDATE game_players SET has_taken_turn=1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+
+  for (const l of logs) {
+    addLog(gameId, game.current_turn, l.type, l.msg, l);
+  }
+
+  const activePlayers = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=? AND is_downed=0').get(gameId).c;
+  const turnsTaken = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=? AND is_downed=0 AND has_taken_turn=1').get(gameId).c;
+  if (turnsTaken >= activePlayers) {
+    endTurn(gameId);
+  }
+
+  return getGameState(gameId, userId);
+}
+
+// ─── Combined action (used by bots — processes both phases atomically) ───────
+
+function takeAction(gameId, userId, primaryAction, secondaryAction) {
+  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+  if (!game) throw new Error('Game not found');
+  if (game.status !== 'active') throw new Error('Game is not active');
+
+  const player = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
+  if (!player) throw new Error('Not in this game');
+  if (player.is_downed) throw new Error('You are downed — you cannot take actions');
+  if (player.has_taken_turn) throw new Error('You already acted this turn');
+
+  const logs = [];
+
+  // ── Primary ──
+  const pa = primaryAction || { type: 'idle' };
+  let apCost = 0;
+
+  if (pa.type === 'move') {
+    const { x, y } = pa;
+    if (chebyshev(player.x, player.y, x, y) !== 1) throw new Error('Can only move to adjacent square');
+    if (isOccupied(gameId, x, y, userId)) throw new Error('Square is occupied');
+    if (x < 0 || y < 0 || x >= game.active_grid_size || y >= game.active_grid_size)
+      throw new Error('Out of bounds');
+    apCost = 1;
+    db.prepare('UPDATE game_players SET x=?, y=? WHERE game_id=? AND user_id=?')
+      .run(x, y, gameId, userId);
+    logs.push({ type: 'action', msg: `${player.username} moved to [${x},${y}]` });
+    collectItems(gameId, userId, player, x, y, logs);
+
+  } else if (pa.type === 'attack') {
+    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, pa.targetUserId);
+    if (!target) throw new Error('Target not found');
+    if (target.is_downed) throw new Error('Target is already downed');
+    if (!inRange(player, target.x, target.y)) throw new Error('Target not in range');
+    apCost = 1;
+
+    const newHearts = (target.hearts - 1);
+    if (newHearts <= 0 && target.extra_hearts <= 0) {
+      const targetTotalAp = target.ap;
+      db.prepare('UPDATE game_players SET hearts=0, extra_hearts=0, is_downed=1, ap=0 WHERE game_id=? AND user_id=?')
+        .run(gameId, target.user_id);
+      db.prepare('UPDATE game_players SET ap=ap+? WHERE game_id=? AND user_id=?')
+        .run(targetTotalAp, gameId, userId);
+      logs.push({ type: 'attack', msg: `${player.username} eliminated ${target.username}! (+${targetTotalAp} AP)`, target: target.username });
+    } else if (newHearts <= 0 && target.extra_hearts > 0) {
+      db.prepare('UPDATE game_players SET hearts=3, extra_hearts=extra_hearts-1 WHERE game_id=? AND user_id=?')
+        .run(gameId, target.user_id);
+      logs.push({ type: 'attack', msg: `${player.username} attacked ${target.username} (−1 ♥)`, target: target.username });
+    } else {
+      db.prepare('UPDATE game_players SET hearts=? WHERE game_id=? AND user_id=?')
+        .run(newHearts, gameId, target.user_id);
+      logs.push({ type: 'attack', msg: `${player.username} attacked ${target.username} (−1 ♥)`, target: target.username });
+    }
+
+  } else if (pa.type === 'addHeart') {
+    apCost = 3;
+    if (player.ap < 3) throw new Error('Need 3 AP');
+    if (player.hearts >= 3) {
+      db.prepare('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+    } else {
+      db.prepare('UPDATE game_players SET hearts=hearts+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+    }
+    logs.push({ type: 'action', msg: `${player.username} reinforced their armor (+1 ♥)` });
+
+  } else if (pa.type === 'upgradeRange') {
+    apCost = 3;
+    if (player.ap < 3) throw new Error('Need 3 AP');
+    db.prepare('UPDATE game_players SET range_val=range_val+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+    logs.push({ type: 'action', msg: `${player.username} upgraded targeting range` });
+
+  } else if (pa.type === 'idle') {
+    apCost = 0;
+    logs.push({ type: 'action', msg: `${player.username} held position` });
+  } else {
+    throw new Error('Invalid action type');
+  }
+
+  if (player.ap < apCost) throw new Error(`Need ${apCost} AP`);
+  db.prepare('UPDATE game_players SET ap=ap-? WHERE game_id=? AND user_id=?').run(apCost, gameId, userId);
+
+  // ── Secondary ──
   const sa = secondaryAction || { type: 'idle' };
   const freshPlayer = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
 
@@ -239,7 +395,6 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
 
     if (target.is_downed) {
       if (!target.can_revive) throw new Error('This commander cannot be revived');
-      // Revive — no heart cost to the sender
       db.prepare('UPDATE game_players SET is_downed=0, hearts=1, ap=1 WHERE game_id=? AND user_id=?')
         .run(gameId, target.user_id);
       logs.push({ type: 'revive', msg: `${player.username} revived ${target.username} from the dead!`, target: target.username });
@@ -267,20 +422,17 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
     logs.push({ type: 'gift', msg: `${player.username} transferred ${amount} AP to ${target.username}`, target: target.username });
   }
 
-  // Mark turn taken
-  db.prepare('UPDATE game_players SET has_taken_turn=1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+  // Mark full turn complete (both phases)
+  db.prepare('UPDATE game_players SET has_taken_primary=1, has_taken_turn=1 WHERE game_id=? AND user_id=?').run(gameId, userId);
 
-  // Log actions
   for (const l of logs) {
     addLog(gameId, game.current_turn, l.type, l.msg, l);
   }
 
-  // Record action
   db.prepare(
     'INSERT INTO turn_actions (id, game_id, turn_num, player_id, action_type, action_data) VALUES (?,?,?,?,?,?)'
   ).run(uuidv4(), gameId, game.current_turn, player.id, pa.type, JSON.stringify({ pa, sa }));
 
-  // Check if all active players have taken their turn
   const activePlayers = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=? AND is_downed=0').get(gameId).c;
   const turnsTaken = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=? AND is_downed=0 AND has_taken_turn=1').get(gameId).c;
   if (turnsTaken >= activePlayers) {
@@ -322,7 +474,12 @@ function endTurn(gameId) {
   const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
   if (!game || game.status !== 'active') return;
 
-  // Penalise players who didn't act
+  // Auto-complete turns for players who submitted primary but ran out of time for secondary (no penalty)
+  db.prepare(
+    'UPDATE game_players SET has_taken_turn=1 WHERE game_id=? AND is_downed=0 AND has_taken_primary=1 AND has_taken_turn=0'
+  ).run(gameId);
+
+  // Penalise players who submitted no primary at all
   const inactive = db.prepare(
     'SELECT * FROM game_players WHERE game_id=? AND is_downed=0 AND has_taken_turn=0'
   ).all(gameId);
@@ -373,8 +530,8 @@ function endTurn(gameId) {
     'UPDATE games SET current_turn=?, turn_started_at=? WHERE id=?'
   ).run(newTurn, Math.floor(Date.now() / 1000), gameId);
 
-  // Reset turn flags
-  db.prepare('UPDATE game_players SET has_taken_turn=0, is_haunted=0 WHERE game_id=? AND is_downed=0').run(gameId);
+  // Reset turn flags (both phases)
+  db.prepare('UPDATE game_players SET has_taken_turn=0, has_taken_primary=0, is_haunted=0 WHERE game_id=? AND is_downed=0').run(gameId);
 
   addLog(gameId, newTurn, 'system', `Turn ${newTurn} begins`);
 
@@ -591,6 +748,7 @@ function getGameState(gameId, requestingUserId) {
       range: p.range_val,
       isDowned: !!p.is_downed,
       canRevive: !!p.can_revive,
+      hasTakenPrimary: !!p.has_taken_primary,
       hasTakenTurn: !!p.has_taken_turn,
       isHaunted: isMe ? !!p.is_haunted : false,
       color: p.color,
@@ -668,7 +826,9 @@ function addBot(gameId, hostUserId, difficulty) {
 }
 
 module.exports = {
-  createGame, joinGame, startGame, addBot, takeAction, submitJuryVote,
+  createGame, joinGame, startGame, addBot,
+  takeAction, takePrimaryAction, takeSecondaryAction,
+  submitJuryVote,
   giveWeekdayAP, giveWeekdayAPToAll, spawnItem, spawnDailyItemsForAll,
   endTurn, checkExpiredTurns, getGameState, getPublicGames
 };
