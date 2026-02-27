@@ -59,7 +59,7 @@ export const getGames = () =>
   request<{ games: PublicGame[] }>('/games');
 
 export const createGame = (name: string, options: {
-  gridSize?: number; maxPlayers?: number; shrinkEnabled?: boolean;
+  gridSize?: number; maxPlayers?: number; shrinkEnabled?: boolean; password?: string;
 }) =>
   request<{ game: GameState }>('/games', {
     method: 'POST',
@@ -69,8 +69,14 @@ export const createGame = (name: string, options: {
 export const getGame = (id: string) =>
   request<{ game: GameState }>(`/games/${id}`);
 
-export const joinGame = (id: string) =>
-  request<{ game: GameState }>(`/games/${id}/join`, { method: 'POST' });
+export const joinGame = (id: string, password?: string) =>
+  request<{ game: GameState }>(`/games/${id}/join`, {
+    method: 'POST',
+    body: JSON.stringify({ password: password || undefined })
+  });
+
+export const deleteGame = (id: string) =>
+  request<{ deleted: boolean }>(`/games/${id}`, { method: 'DELETE' });
 
 export const startGame = (id: string) =>
   request<{ game: GameState }>(`/games/${id}/start`, { method: 'POST' });

@@ -1,4 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { getAvailableBotUser, scheduleBotTurns } = require('./botAI');
 
@@ -64,11 +65,12 @@ function createGame(name, createdBy, options = {}) {
   const gridSize = options.gridSize || 16;
   const maxPlayers = options.maxPlayers || 16;
   const shrinkEnabled = options.shrinkEnabled ? 1 : 0;
+  const passwordHash = options.password ? bcrypt.hashSync(options.password, 10) : null;
 
   db.prepare(
-    `INSERT INTO games (id, name, grid_size, active_grid_size, max_players, shrink_enabled, created_by)
-     VALUES (?,?,?,?,?,?,?)`
-  ).run(id, name, gridSize, gridSize, maxPlayers, shrinkEnabled, createdBy);
+    `INSERT INTO games (id, name, grid_size, active_grid_size, max_players, shrink_enabled, created_by, password_hash)
+     VALUES (?,?,?,?,?,?,?,?)`
+  ).run(id, name, gridSize, gridSize, maxPlayers, shrinkEnabled, createdBy, passwordHash);
 
   addLog(id, 0, 'system', `Game "${name}" created`);
 
@@ -83,13 +85,19 @@ function createGame(name, createdBy, options = {}) {
   return getGameState(id, createdBy);
 }
 
-function joinGame(gameId, userId) {
+function joinGame(gameId, userId, password) {
   const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
   if (!game) throw new Error('Game not found');
   if (game.status !== 'lobby') throw new Error('Game already started');
 
   const existing = db.prepare('SELECT 1 FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
   if (existing) throw new Error('Already in this game');
+
+  // Password check (skip if player is already a member — handled above)
+  if (game.password_hash) {
+    if (!password) throw new Error('PASSWORD_REQUIRED');
+    if (!bcrypt.compareSync(password, game.password_hash)) throw new Error('Incorrect password');
+  }
 
   const count = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=?').get(gameId).c;
   if (count >= game.max_players) throw new Error('Game is full');
@@ -776,6 +784,7 @@ function getGameState(gameId, requestingUserId) {
     currentTurn: game.current_turn,
     turnStartedAt: game.turn_started_at,
     shrinkEnabled: !!game.shrink_enabled,
+    isPasswordProtected: !!game.password_hash,
     players,
     items: items.map(i => ({ id: i.id, type: i.item_type, x: i.x, y: i.y, value: i.value })),
     logs: logs.map(l => ({ type: l.log_type, message: l.message, turn: l.turn_num, at: l.created_at })),
@@ -791,7 +800,25 @@ function getPublicGames() {
      WHERE g.status IN ('lobby','active')
      ORDER BY g.created_at DESC LIMIT 20`
   ).all();
-  return games;
+  return games.map(g => ({ ...g, has_password: !!g.password_hash, password_hash: undefined }));
+}
+
+// ─── Delete Game ────────────────────────────────────────────────────────────
+
+function deleteGame(gameId, userId) {
+  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+  if (!game) throw new Error('Game not found');
+  if (game.created_by !== userId) throw new Error('Only the host can delete this operation');
+
+  // Cascade delete all related data
+  db.prepare('DELETE FROM jury_votes WHERE game_id=?').run(gameId);
+  db.prepare('DELETE FROM turn_actions WHERE game_id=?').run(gameId);
+  db.prepare('DELETE FROM board_items WHERE game_id=?').run(gameId);
+  db.prepare('DELETE FROM game_log WHERE game_id=?').run(gameId);
+  db.prepare('DELETE FROM game_players WHERE game_id=?').run(gameId);
+  db.prepare('DELETE FROM games WHERE id=?').run(gameId);
+
+  return { deleted: true };
 }
 
 // ─── Add Bot to Lobby ────────────────────────────────────────────────────────
@@ -826,7 +853,7 @@ function addBot(gameId, hostUserId, difficulty) {
 }
 
 module.exports = {
-  createGame, joinGame, startGame, addBot,
+  createGame, joinGame, startGame, addBot, deleteGame,
   takeAction, takePrimaryAction, takeSecondaryAction,
   submitJuryVote,
   giveWeekdayAP, giveWeekdayAPToAll, spawnItem, spawnDailyItemsForAll,

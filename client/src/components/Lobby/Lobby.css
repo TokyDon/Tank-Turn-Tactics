@@ -169,3 +169,98 @@ select.input option { background: var(--bg-elevated); }
   gap: var(--sp-2);
   flex-wrap: wrap;
 }
+
+/* Allow password/delete rows to expand below main row content */
+.game-row {
+  flex-wrap: wrap;
+}
+
+/* Lock icon in game name */
+.lock-icon {
+  font-size: 12px;
+  opacity: 0.75;
+  margin-right: 2px;
+}
+
+/* Smaller input variant for inline prompts */
+.input-sm {
+  height: 32px;
+  padding: 4px 10px;
+  font-size: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Inline join-password row */
+.join-password-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding-top: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* Danger-outline ghost button */
+.btn-danger-outline {
+  border-color: rgba(207, 40, 40, 0.4);
+  color: var(--red, #cf2020);
+}
+.btn-danger-outline:hover {
+  border-color: rgba(207, 40, 40, 0.75);
+  background: rgba(207, 40, 40, 0.08);
+}
+
+/* Solid danger button */
+.btn-danger {
+  background: rgba(207, 40, 40, 0.15);
+  border-color: rgba(207, 40, 40, 0.6);
+  color: var(--red, #cf2020);
+}
+.btn-danger:hover:not(:disabled) {
+  background: rgba(207, 40, 40, 0.25);
+  border-color: rgba(207, 40, 40, 0.9);
+}
+
+/* Game row with delete confirm shown */
+.delete-confirm-open {
+  border-color: rgba(207, 40, 40, 0.4);
+}
+
+/* Full-width delete confirm panel inside a game-row */
+.delete-confirm-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+  padding-top: var(--sp-2);
+}
+
+/* Active-game warning text */
+.delete-warning {
+  color: var(--amber-text, #e8a520);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.delete-confirm-msg {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.delete-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--sp-2);
+}
+
+/* Delete confirm inline panel inside Game.tsx lobby card */
+.delete-confirm-inline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid rgba(207, 40, 40, 0.35);
+  border-radius: var(--radius, 6px);
+  background: rgba(207, 40, 40, 0.06);
+}

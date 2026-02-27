@@ -52,6 +52,7 @@ export interface GameState {
   currentTurn: number;
   turnStartedAt: number | null;
   shrinkEnabled: boolean;
+  isPasswordProtected: boolean;
   players: GamePlayer[];
   items: BoardItem[];
   logs: GameLog[];
@@ -67,6 +68,7 @@ export interface PublicGame {
   player_count: number;
   host_name: string;
   created_at: number;
+  has_password: boolean;
 }
 
 export type PrimaryActionType = 'move' | 'attack' | 'addHeart' | 'upgradeRange' | 'idle';

@@ -27,6 +27,8 @@ export default function Game({ onLeave }: Props) {
   const [botDifficulty, setBotDifficulty] = useState<'private' | 'major' | 'general'>('private');
   const [addingBot, setAddingBot] = useState(false);
   const [forcingTurn, setForcingTurn] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deletingGame, setDeletingGame] = useState(false);
   const [tab, setTab] = useState<'grid' | 'log' | 'players'>('grid');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -128,6 +130,20 @@ export default function Game({ onLeave }: Props) {
       showToast(err instanceof Error ? err.message : 'Failed');
     } finally {
       setForcingTurn(false);
+    }
+  }
+
+  async function handleDeleteGame() {
+    if (!game) return;
+    setDeletingGame(true);
+    try {
+      await api.deleteGame(game.id);
+      clearGame();
+      onLeave();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete operation');
+      setDeletingGame(false);
+      setDeleteConfirm(false);
     }
   }
 
@@ -273,6 +289,33 @@ export default function Game({ onLeave }: Props) {
                 >
                   START OPERATION ({game.players.length} UNITS)
                 </button>
+
+                {/* Delete operation — host only, with confirmation */}
+                {!deleteConfirm ? (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: 'var(--red, #cf2020)', marginTop: '4px' }}
+                    onClick={() => setDeleteConfirm(true)}
+                  >
+                    ✕ DELETE OPERATION
+                  </button>
+                ) : (
+                  <div className="delete-confirm-inline">
+                    <div className="delete-confirm-msg tactical">
+                      Permanently delete “{game.name}”? This cannot be undone.
+                    </div>
+                    <div className="delete-confirm-actions">
+                      <button className="btn btn-ghost btn-sm" onClick={() => setDeleteConfirm(false)}>CANCEL</button>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        disabled={deletingGame}
+                        onClick={handleDeleteGame}
+                      >
+                        {deletingGame ? 'DELETING...' : 'CONFIRM DELETE'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <p className="waiting-hint tactical">WAITING FOR HOST TO DEPLOY...</p>

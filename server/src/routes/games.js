@@ -1,6 +1,6 @@
 const express = require('express');
 const { authMiddleware } = require('../middleware/auth');
-const { createGame, joinGame, startGame, addBot, getGameState, getPublicGames } = require('../game/logic');
+const { createGame, joinGame, startGame, addBot, deleteGame, getGameState, getPublicGames } = require('../game/logic');
 
 const router = express.Router();
 
@@ -15,16 +15,16 @@ router.get('/', authMiddleware, (req, res) => {
 });
 
 router.post('/', authMiddleware, (req, res) => {
-  const { name, shrinkEnabled } = req.body;
+  const { name, shrinkEnabled, password } = req.body;
   if (!name || name.trim().length < 1) return res.status(400).json({ error: 'Game name required' });
   if (name.trim().length > 60) return res.status(400).json({ error: 'Game name too long (max 60 chars)' });
+  if (password && password.length > 64) return res.status(400).json({ error: 'Password too long' });
 
-  // Clamp to valid ranges — prevents absurdly large boards
   const gridSize   = Math.min(20, Math.max(6,  parseInt(req.body.gridSize,  10) || 16));
   const maxPlayers = Math.min(20, Math.max(2,  parseInt(req.body.maxPlayers, 10) || 16));
 
   try {
-    const game = createGame(name.trim(), req.userId, { gridSize, maxPlayers, shrinkEnabled });
+    const game = createGame(name.trim(), req.userId, { gridSize, maxPlayers, shrinkEnabled, password: password || null });
     res.json({ game });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -43,9 +43,19 @@ router.get('/:id', authMiddleware, (req, res) => {
 });
 
 router.post('/:id/join', authMiddleware, (req, res) => {
+  const { password } = req.body;
   try {
-    const state = joinGame(req.params.id, req.userId);
+    const state = joinGame(req.params.id, req.userId, password || null);
     res.json({ game: state });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/:id', authMiddleware, (req, res) => {
+  try {
+    deleteGame(req.params.id, req.userId);
+    res.json({ deleted: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
