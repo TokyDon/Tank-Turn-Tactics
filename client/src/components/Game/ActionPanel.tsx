@@ -39,6 +39,14 @@ export default function ActionPanel({
   if (!me || me.isDowned) return null;
 
   const ap = me.ap ?? 0;
+  // AP remaining after planned primary action — used to gate secondary AP gift amounts
+  const primaryCost = pendingPrimary ? (ACTION_COSTS[pendingPrimary.type] ?? 0) : 0;
+  const apAfterPrimary = Math.max(0, ap - primaryCost);
+
+  // Heart target list: include downed players who can be revived (costs no hearts from sender)
+  const heartTargets = game.players.filter(p => !p.isMe && (!p.isDowned || p.canRevive));
+  // AP target list: alive players only
+  const apTargets = game.players.filter(p => !p.isDowned && !p.isMe);
 
   if (me.hasTakenTurn) {
     const active = game.players.filter(p => !p.isDowned).length;
@@ -61,8 +69,6 @@ export default function ActionPanel({
     );
   }
 
-  const targets = game.players.filter(p => !p.isDowned && !p.isMe);
-
   function targetName(id?: string) {
     return id ? (game.players.find(p => p.userId === id)?.username ?? id) : null;
   }
@@ -73,8 +79,8 @@ export default function ActionPanel({
         <div className="secondary-inline-picker">
           <div className="secondary-picker-label tactical">SEND ♥ TO:</div>
           <div className="secondary-target-list">
-            {targets.map(p => (
-              <button key={p.userId} className="secondary-target-btn tactical"
+            {heartTargets.map(p => (
+              <button key={p.userId} className={`secondary-target-btn tactical${p.isDowned ? ' target-downed' : ''}`}
                 onClick={() => {
                   setPendingSecondary({ type: 'giveHeart', targetUserId: p.userId });
                   setSecMode(null);
@@ -82,6 +88,7 @@ export default function ActionPanel({
                 }}>
                 <span className="sec-target-dot" style={{ background: p.color }} />
                 {p.username}
+                {p.isDowned && <span className="sec-target-status tactical">↑ REVIVE</span>}
               </button>
             ))}
           </div>
@@ -97,12 +104,12 @@ export default function ActionPanel({
             {[1, 2, 3].map(n => (
               <button key={n}
                 className={`btn btn-sm ${giftAmount === n ? 'btn-amber' : 'btn-ghost'}`}
-                onClick={() => setGiftAmount(n)} disabled={n > ap}
+                onClick={() => setGiftAmount(n)} disabled={n > apAfterPrimary}
               >{n} AP</button>
             ))}
           </div>
           <div className="secondary-target-list">
-            {targets.map(p => (
+            {apTargets.map(p => (
               <button key={p.userId} className="secondary-target-btn tactical"
                 onClick={() => {
                   setPendingSecondary({ type: 'giveAP', targetUserId: p.userId, amount: giftAmount });
@@ -165,7 +172,7 @@ export default function ActionPanel({
                 <button className="btn btn-sm btn-ghost" onClick={() => setSecMode('heart')}>
                   ♥ SEND HEART
                 </button>
-                <button className="btn btn-sm btn-ghost" onClick={() => setSecMode('ap')} disabled={ap < 1}>
+                <button className="btn btn-sm btn-ghost" onClick={() => setSecMode('ap')} disabled={apAfterPrimary < 1}>
                   ⚡ SEND AP
                 </button>
               </div>
@@ -276,7 +283,7 @@ export default function ActionPanel({
                   label="SEND AP"
                   icon="⚡"
                   cost={1}
-                  ap={ap}
+                  ap={apAfterPrimary}
                   onClick={() => setSecMode('ap')}
                 />
               </div>

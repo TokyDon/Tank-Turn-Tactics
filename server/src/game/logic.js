@@ -238,8 +238,9 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
     if (!inRange(freshPlayer, target.x, target.y)) throw new Error('Target not in range');
 
     if (target.is_downed) {
-      // Revive!
-      db.prepare('UPDATE game_players SET is_downed=0, hearts=1, ap=1, can_revive=1 WHERE game_id=? AND user_id=?')
+      if (!target.can_revive) throw new Error('This commander cannot be revived');
+      // Revive — no heart cost to the sender
+      db.prepare('UPDATE game_players SET is_downed=0, hearts=1, ap=1 WHERE game_id=? AND user_id=?')
         .run(gameId, target.user_id);
       logs.push({ type: 'revive', msg: `${player.username} revived ${target.username} from the dead!`, target: target.username });
     } else {

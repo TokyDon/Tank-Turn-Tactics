@@ -101,7 +101,7 @@ export default function Lobby({ onEnterGame }: Props) {
       </header>
 
       <div className="lobby-body">
-        {error && <div className="lobby-error error-msg">{error}</div>}
+        {error && <div className="error-msg">{error}</div>}
 
         {/* Rejoin active game */}
         {myActiveGame && (

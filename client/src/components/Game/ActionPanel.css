@@ -283,3 +283,13 @@
   border-radius: 1px;
   flex-shrink: 0;
 }
+.sec-target-status {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--green-text);
+  letter-spacing: 0.04em;
+}
+.target-downed {
+  border-color: rgba(34,197,94,0.25);
+  background: rgba(34,197,94,0.04);
+}
