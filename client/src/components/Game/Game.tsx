@@ -32,16 +32,14 @@ export default function Game({ onLeave }: Props) {
   const [tab, setTab] = useState<'grid' | 'log' | 'players'>('grid');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Declared early (with optional chaining) so the useEffect below can reference it
+  // without a temporal dead zone — hooks must come before any conditional return.
+  const me = game?.players.find(p => p.userId === user?.id);
+
   useEffect(() => {
     const interval = setInterval(() => refreshGame(), 30000);
     return () => clearInterval(interval);
   }, [refreshGame]);
-
-  function showToast(msg: string, duration = 2800) {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setError(msg);
-    toastTimer.current = setTimeout(() => setError(''), duration);
-  }
 
   // If the player has submitted primary but not secondary (e.g. after a page reload), jump to secondary phase
   useEffect(() => {
@@ -50,9 +48,14 @@ export default function Game({ onLeave }: Props) {
     }
   }, [me?.hasTakenPrimary, me?.hasTakenTurn, phase]);
 
+  function showToast(msg: string, duration = 2800) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setError(msg);
+    toastTimer.current = setTimeout(() => setError(''), duration);
+  }
+
   if (!game || !user) return null;
 
-  const me = game.players.find(p => p.userId === user.id);
   const activePlayers = game.players.filter(p => !p.isDowned);
   const downedPlayers = game.players.filter(p => p.isDowned);
   const allActed = activePlayers.every(p => p.hasTakenTurn);
