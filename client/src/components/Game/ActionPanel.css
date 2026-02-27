@@ -83,6 +83,7 @@
 .action-icon {
   font-size: 14px;
   line-height: 1;
+  font-family: 'Segoe UI Symbol', 'Apple Symbols', 'Arial Unicode MS', system-ui, sans-serif;
 }
 .action-label {
   font-size: 8px;

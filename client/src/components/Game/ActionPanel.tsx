@@ -70,7 +70,7 @@ export default function ActionPanel({
     return id ? (game.players.find(p => p.userId === id)?.username ?? id) : null;
   }
 
-  // Confirm phase â€” primary action only
+  // Confirm phase — primary action only
   if (phase === 'confirm' && pendingPrimary) {
     return (
       <div className="action-panel confirm-phase">
@@ -80,9 +80,9 @@ export default function ActionPanel({
           <div className="confirm-row">
             <span className="confirm-label">PRIMARY</span>
             <span className="confirm-value">
-              {pendingPrimary.type === 'move' && `MOVE â†’ [${pendingPrimary.x},${pendingPrimary.y}]`}
+              {pendingPrimary.type === 'move' && `MOVE → [${pendingPrimary.x},${pendingPrimary.y}]`}
               {pendingPrimary.type === 'attack' && `ATTACK ${targetName(pendingPrimary.targetUserId)}`}
-              {pendingPrimary.type === 'addHeart' && 'REINFORCE ARMOR (+1 â™¥)'}
+              {pendingPrimary.type === 'addHeart' && 'REINFORCE ARMOR (+1 ♥)'}
               {pendingPrimary.type === 'upgradeRange' && 'UPGRADE TARGETING'}
             </span>
             <span className="confirm-cost tactical">-{ACTION_COSTS[pendingPrimary.type]} AP</span>
@@ -98,7 +98,7 @@ export default function ActionPanel({
     );
   }
 
-  // Secondary phase â€” pick optional secondary action, then select target on grid
+  // Secondary phase — pick optional secondary action, then select target on grid
   if (phase === 'secondary') {
     if (apPickMode) {
       return (
@@ -123,7 +123,7 @@ export default function ActionPanel({
                 setPhase('select-secondary');
               }}
             >
-              SELECT TARGET â†’
+              SELECT TARGET →
             </button>
           </div>
         </div>
@@ -133,10 +133,10 @@ export default function ActionPanel({
       <div className="action-panel secondary-phase">
         <div className="secondary-phase-header tactical">✓ PRIMARY ACTION COMPLETE</div>
         <div className="action-group">
-          <div className="action-grid">
+          <div className="action-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
             <ActionButton
-              label="SEND â™¥"
-              icon="â™¥"
+              label="GIVE HEART"
+              icon="♥"
               cost={0}
               ap={ap}
               green
@@ -147,8 +147,8 @@ export default function ActionPanel({
               }}
             />
             <ActionButton
-              label="SEND AP"
-              icon="âš¡"
+              label="GIVE AP"
+              icon="⚡"
               cost={1}
               ap={ap}
               disabled={apTargets.length === 0}
@@ -162,7 +162,7 @@ export default function ActionPanel({
           onClick={() => onSubmitSecondary(null)}
           disabled={submitting}
         >
-          {submitting ? 'TRANSMITTING...' : 'â†© SKIP SECONDARY'}
+          {submitting ? 'TRANSMITTING...' : '↩ SKIP SECONDARY'}
         </button>
       </div>
     );
@@ -171,8 +171,8 @@ export default function ActionPanel({
   // Select secondary target on the grid
   if (phase === 'select-secondary') {
     const hint = pendingSecondaryAction?.type === 'giveHeart'
-      ? 'SEND â™¥ â€” TAP A PLAYER ON THE MAP'
-      : `SEND ${pendingSecondaryAction?.amount ?? 1} AP â€” TAP A PLAYER ON THE MAP`;
+      ? 'SEND ♥ — TAP A PLAYER ON THE MAP'
+      : `SEND ${pendingSecondaryAction?.amount ?? 1} AP — TAP A PLAYER ON THE MAP`;
     return (
       <div className="action-panel selecting">
         <div className="selecting-hint tactical">{hint}</div>
@@ -193,7 +193,7 @@ export default function ActionPanel({
   if (phase === 'select-attack') {
     return (
       <div className="action-panel selecting">
-        <div className="selecting-hint tactical">TAP AN ENEMY WITHIN RANGE â—Ž{me.range}</div>
+        <div className="selecting-hint tactical">TAP AN ENEMY WITHIN RANGE ◎{me.range}</div>
         <button className="btn btn-ghost btn-sm" onClick={onCancel}>CANCEL</button>
       </div>
     );
@@ -202,10 +202,10 @@ export default function ActionPanel({
   // Default: idle action selection
   return (
     <div className="action-panel">
-      <div className="idle-warning tactical">âš  TAKE A PRIMARY ACTION OR LOSE 1 HP AT END OF TURN</div>
+      <div className="idle-warning tactical">⚠ TAKE A PRIMARY ACTION OR LOSE 1 HP AT END OF TURN</div>
       <div className="panel-header">
         <span className="panel-title tactical">SELECT ORDER</span>
-        <span className="panel-ap tactical">âš¡ {ap} AP</span>
+        <span className="panel-ap tactical">⚡ {ap} AP</span>
       </div>
       <div className="action-sections">
         <div className="action-group">
@@ -213,7 +213,7 @@ export default function ActionPanel({
           <div className="action-grid">
             <ActionButton
               label="MOVE"
-              icon="â†‘"
+              icon="→"
               cost={1}
               ap={ap}
               onClick={() => {
@@ -223,7 +223,7 @@ export default function ActionPanel({
             />
             <ActionButton
               label="ATTACK"
-              icon="âŠ•"
+              icon="⊕"
               cost={1}
               ap={ap}
               danger
@@ -234,7 +234,7 @@ export default function ActionPanel({
             />
             <ActionButton
               label="+ HEART"
-              icon="â™¥"
+              icon="♥"
               cost={3}
               ap={ap}
               onClick={() => {
@@ -244,7 +244,7 @@ export default function ActionPanel({
             />
             <ActionButton
               label="RANGE++"
-              icon="â—Ž"
+              icon="◎"
               cost={3}
               ap={ap}
               onClick={() => {
