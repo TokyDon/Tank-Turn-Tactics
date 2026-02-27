@@ -22,6 +22,15 @@ const io = new Server(server, {
 app.use(cors({ origin: [CLIENT_URL, 'http://localhost:5173'], credentials: true }));
 app.use(express.json());
 
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-DNS-Prefetch-Control', 'off');
+  next();
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/games', gamesRoutes);

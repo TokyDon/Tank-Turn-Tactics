@@ -9,13 +9,20 @@ router.get('/', authMiddleware, (req, res) => {
     const games = getPublicGames();
     res.json({ games });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[games list error]', err);
+    res.status(500).json({ error: 'Failed to load games' });
   }
 });
 
 router.post('/', authMiddleware, (req, res) => {
-  const { name, gridSize, maxPlayers, shrinkEnabled } = req.body;
+  const { name, shrinkEnabled } = req.body;
   if (!name || name.trim().length < 1) return res.status(400).json({ error: 'Game name required' });
+  if (name.trim().length > 60) return res.status(400).json({ error: 'Game name too long (max 60 chars)' });
+
+  // Clamp to valid ranges — prevents absurdly large boards
+  const gridSize   = Math.min(20, Math.max(6,  parseInt(req.body.gridSize,  10) || 16));
+  const maxPlayers = Math.min(20, Math.max(2,  parseInt(req.body.maxPlayers, 10) || 16));
+
   try {
     const game = createGame(name.trim(), req.userId, { gridSize, maxPlayers, shrinkEnabled });
     res.json({ game });
@@ -30,7 +37,8 @@ router.get('/:id', authMiddleware, (req, res) => {
     if (!state) return res.status(404).json({ error: 'Game not found' });
     res.json({ game: state });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[game state error]', err);
+    res.status(500).json({ error: 'Failed to load game' });
   }
 });
 

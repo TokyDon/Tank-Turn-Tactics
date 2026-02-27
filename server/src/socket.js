@@ -7,7 +7,8 @@ function initSocket(io) {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('No token'));
     try {
-      const payload = jwt.verify(token, JWT_SECRET);
+      // Explicitly whitelist algorithm — prevents alg:none and RS256 confusion attacks
+      const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
       socket.userId = payload.userId;
       socket.username = payload.username;
       next();

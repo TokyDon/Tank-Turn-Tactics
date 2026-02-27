@@ -387,6 +387,9 @@ function endTurn(gameId) {
 // ─── Jury Votes ──────────────────────────────────────────────────────────────
 
 function submitJuryVote(gameId, voterId, targetId, voteType) {
+  const VALID_VOTE_TYPES = ['haunting', 'intercession'];
+  if (!VALID_VOTE_TYPES.includes(voteType)) throw new Error('Invalid vote type');
+
   const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
   if (!game || game.status !== 'active') throw new Error('Game not active');
 

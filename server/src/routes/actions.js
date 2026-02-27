@@ -6,6 +6,9 @@ const db = require('../db');
 
 const router = express.Router();
 
+// Admin username can be overridden via env var
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'james';
+
 router.post('/:id/action', authMiddleware, (req, res) => {
   const { primaryAction, secondaryAction } = req.body;
   try {
@@ -30,7 +33,7 @@ router.post('/:id/vote', authMiddleware, (req, res) => {
 router.post('/:id/admin/force-turn', authMiddleware, (req, res) => {
   try {
     const user = db.prepare('SELECT username FROM users WHERE id=?').get(req.userId);
-    if (!user || user.username !== 'james') return res.status(403).json({ error: 'Forbidden' });
+    if (!user || user.username !== ADMIN_USERNAME) return res.status(403).json({ error: 'Forbidden' });
     // Mark all un-acted alive players as having acted (no penalty)
     db.prepare(
       'UPDATE game_players SET has_taken_turn=1 WHERE game_id=? AND is_downed=0 AND has_taken_turn=0'
