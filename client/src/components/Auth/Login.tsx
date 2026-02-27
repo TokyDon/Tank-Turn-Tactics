@@ -237,7 +237,7 @@ export default function Login() {
               <input
                 className="input"
                 type="password"
-                placeholder={mode === 'register' ? 'Min. 6 characters' : 'Enter passphrase'}
+                placeholder={mode === 'register' ? 'Min. 8 characters' : 'Enter passphrase'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 autoComplete={mode === 'register' ? 'new-password' : 'current-password'}

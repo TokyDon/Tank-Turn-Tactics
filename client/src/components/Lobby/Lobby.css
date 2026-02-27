@@ -178,7 +178,7 @@ select.input option { background: var(--bg-elevated); }
 /* Lock icon in game name */
 .lock-icon {
   font-size: 12px;
-  opacity: 0.75;
+  opacity: 0.9;
   margin-right: 2px;
 }
 
