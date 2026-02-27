@@ -37,6 +37,14 @@
   font-size: 9px;
   color: var(--text-muted);
   letter-spacing: 0.12em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.group-ap {
+  font-size: 11px;
+  color: var(--amber-text);
+  letter-spacing: 0.04em;
 }
 
 .action-grid {

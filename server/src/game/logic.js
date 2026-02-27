@@ -255,7 +255,6 @@ function takeSecondaryAction(gameId, userId, secondaryAction) {
   const player = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
   if (!player) throw new Error('Not in this game');
   if (player.is_downed) throw new Error('You are downed — you cannot take actions');
-  if (!player.has_taken_primary) throw new Error('Submit your primary action first');
   if (player.has_taken_turn) throw new Error('You already completed your turn');
 
   const logs = [];

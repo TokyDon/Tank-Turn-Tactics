@@ -98,72 +98,33 @@ export default function ActionPanel({
     );
   }
 
-  // Secondary phase — pick optional secondary action, then select target on grid
-  if (phase === 'secondary') {
-    if (apPickMode) {
-      return (
-        <div className="action-panel secondary-phase">
-          <div className="secondary-phase-header tactical">✓ SELECT AMOUNT TO SEND</div>
-          <div className="ap-amount-row">
-            {[1, 2, 3].map(n => (
-              <button key={n}
-                className={`btn btn-sm ${giftAmount === n ? 'btn-amber' : 'btn-ghost'}`}
-                onClick={() => setGiftAmount(n)} disabled={n > ap}
-              >{n} AP</button>
-            ))}
-          </div>
-          <div className="secondary-phase-hint tactical">THEN TAP A PLAYER ON THE MAP</div>
-          <div className="secondary-confirm-row">
-            <button className="btn btn-ghost btn-sm" onClick={() => setApPickMode(false)}>BACK</button>
-            <button
-              className="btn btn-amber btn-sm"
-              disabled={apTargets.length === 0}
-              onClick={() => {
-                setPendingSecondaryAction({ type: 'giveAP', amount: giftAmount });
-                setPhase('select-secondary');
-              }}
-            >
-              SELECT TARGET →
-            </button>
-          </div>
-        </div>
-      );
-    }
+  // AP amount picker for GIVE AP secondary action
+  if (apPickMode) {
     return (
       <div className="action-panel secondary-phase">
-        <div className="secondary-phase-header tactical">✓ PRIMARY ACTION COMPLETE</div>
-        <div className="action-group">
-          <div className="action-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-            <ActionButton
-              label="GIVE HEART"
-              icon="♥"
-              cost={0}
-              ap={ap}
-              green
-              disabled={heartTargets.length === 0}
-              onClick={() => {
-                setPendingSecondaryAction({ type: 'giveHeart' });
-                setPhase('select-secondary');
-              }}
-            />
-            <ActionButton
-              label="GIVE AP"
-              icon="⚡"
-              cost={1}
-              ap={ap}
-              disabled={apTargets.length === 0}
-              onClick={() => setApPickMode(true)}
-            />
-          </div>
+        <div className="secondary-phase-header tactical">✓ SELECT AMOUNT TO SEND</div>
+        <div className="ap-amount-row">
+          {[1, 2, 3].map(n => (
+            <button key={n}
+              className={`btn btn-sm ${giftAmount === n ? 'btn-amber' : 'btn-ghost'}`}
+              onClick={() => setGiftAmount(n)} disabled={n > ap}
+            >{n} AP</button>
+          ))}
         </div>
-        <button
-          className="btn btn-ghost btn-sm btn-full"
-          style={{ fontSize: '11px', opacity: 0.6 }}
-          onClick={() => onSubmitSecondary(null)}
-          disabled={submitting}
-        >
-          {submitting ? 'TRANSMITTING...' : '↩ SKIP SECONDARY'}
-        </button>
+        <div className="secondary-phase-hint tactical">THEN TAP A PLAYER ON THE MAP</div>
+        <div className="secondary-confirm-row">
+          <button className="btn btn-ghost btn-sm" onClick={() => setApPickMode(false)}>BACK</button>
+          <button
+            className="btn btn-amber btn-sm"
+            disabled={apTargets.length === 0}
+            onClick={() => {
+              setPendingSecondaryAction({ type: 'giveAP', amount: giftAmount });
+              setPhase('select-secondary');
+            }}
+          >
+            SELECT TARGET →
+          </button>
+        </div>
       </div>
     );
   }
@@ -199,23 +160,26 @@ export default function ActionPanel({
     );
   }
 
-  // Default: idle action selection
+  // Combined action panel — primary + secondary always visible
+  const hasTakenPrimary = !!me.hasTakenPrimary;
   return (
     <div className="action-panel">
-      <div className="idle-warning tactical">⚠ TAKE A PRIMARY ACTION OR LOSE 1 HP AT END OF TURN</div>
-      <div className="panel-header">
-        <span className="panel-title tactical">SELECT ORDER</span>
-        <span className="panel-ap tactical">⚡ {ap} AP</span>
-      </div>
+      {!hasTakenPrimary && (
+        <div className="idle-warning tactical">⚠ TAKE A PRIMARY ACTION OR LOSE 1 HP AT END OF TURN</div>
+      )}
       <div className="action-sections">
         <div className="action-group">
-          <span className="action-group-label tactical">PRIMARY</span>
+          <span className="action-group-label tactical">
+            {hasTakenPrimary ? '✓ PRIMARY COMPLETE' : 'PRIMARY'}
+            <span className="group-ap tactical"> ⚡ {ap} AP</span>
+          </span>
           <div className="action-grid">
             <ActionButton
               label="MOVE"
               icon="→"
               cost={1}
               ap={ap}
+              disabled={hasTakenPrimary}
               onClick={() => {
                 setPendingPrimary({ type: 'move' });
                 setPhase('select-move');
@@ -227,6 +191,7 @@ export default function ActionPanel({
               cost={1}
               ap={ap}
               danger
+              disabled={hasTakenPrimary}
               onClick={() => {
                 setPendingPrimary({ type: 'attack' });
                 setPhase('select-attack');
@@ -237,6 +202,7 @@ export default function ActionPanel({
               icon="♥"
               cost={3}
               ap={ap}
+              disabled={hasTakenPrimary}
               onClick={() => {
                 setPendingPrimary({ type: 'addHeart' });
                 setPhase('confirm');
@@ -247,12 +213,37 @@ export default function ActionPanel({
               icon="◎"
               cost={3}
               ap={ap}
+              disabled={hasTakenPrimary}
               onClick={() => {
                 setPendingPrimary({ type: 'upgradeRange' });
                 setPhase('confirm');
               }}
             />
-
+          </div>
+        </div>
+        <div className="action-group">
+          <span className="action-group-label tactical">SECONDARY</span>
+          <div className="action-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            <ActionButton
+              label="GIVE HEART"
+              icon="♥"
+              cost={0}
+              ap={ap}
+              green
+              disabled={heartTargets.length === 0}
+              onClick={() => {
+                setPendingSecondaryAction({ type: 'giveHeart' });
+                setPhase('select-secondary');
+              }}
+            />
+            <ActionButton
+              label="GIVE AP"
+              icon="⚡"
+              cost={1}
+              ap={ap}
+              disabled={apTargets.length === 0}
+              onClick={() => setApPickMode(true)}
+            />
           </div>
         </div>
       </div>

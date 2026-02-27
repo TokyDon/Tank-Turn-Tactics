@@ -80,7 +80,7 @@ export default function Grid({ game, me, phase, secondaryTargetIds = new Set(), 
   }
 
   return (
-    <div className="grid-wrapper" style={{ '--cell-scale': zoom } as React.CSSProperties}>
+    <div className="grid-wrapper" style={{ '--cell-scale': zoom, '--grid-size': size } as React.CSSProperties}>
       <div className="zoom-controls">
         <button className="zoom-btn" onClick={() => setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))}>−</button>
         <span className="zoom-label tactical">{Math.round(zoom * 100)}%</span>
@@ -99,7 +99,6 @@ export default function Grid({ game, me, phase, secondaryTargetIds = new Set(), 
         </div>
         <div
           className="grid-board"
-          style={{ '--grid-size': size } as React.CSSProperties}
         >
           {Array.from({ length: size }, (_, y) =>
             Array.from({ length: size }, (_, x) => {
