@@ -20,7 +20,7 @@ interface Props {
 }
 
 const ACTION_COSTS: Record<string, number> = {
-  move: 1, attack: 1, addHeart: 3, upgradeRange: 3, idle: 0
+  move: 1, attack: 1, addHeart: 3, upgradeRange: 3
 };
 
 export default function ActionPanel({
@@ -76,23 +76,17 @@ export default function ActionPanel({
       <div className="action-panel confirm-phase">
         <div className="confirm-header tactical">CONFIRM PRIMARY ORDER</div>
         <div className="confirm-rows">
-          {pendingPrimary.type !== 'idle' ? (
-            <div className="confirm-row">
-              <span className="confirm-label">PRIMARY</span>
-              <span className="confirm-value">
-                {pendingPrimary.type === 'move' && `MOVE â†’ [${pendingPrimary.x},${pendingPrimary.y}]`}
-                {pendingPrimary.type === 'attack' && `ATTACK ${targetName(pendingPrimary.targetUserId)}`}
-                {pendingPrimary.type === 'addHeart' && 'REINFORCE ARMOR (+1 â™¥)'}
-                {pendingPrimary.type === 'upgradeRange' && 'UPGRADE TARGETING'}
-              </span>
-              <span className="confirm-cost tactical">-{ACTION_COSTS[pendingPrimary.type]} AP</span>
-            </div>
-          ) : (
-            <div className="confirm-row confirm-row-idle">
-              <span className="confirm-label">PRIMARY</span>
-              <span className="confirm-value-idle tactical">IDLE â€” HOLD POSITION</span>
-            </div>
-          )}
+
+          <div className="confirm-row">
+            <span className="confirm-label">PRIMARY</span>
+            <span className="confirm-value">
+              {pendingPrimary.type === 'move' && `MOVE â†’ [${pendingPrimary.x},${pendingPrimary.y}]`}
+              {pendingPrimary.type === 'attack' && `ATTACK ${targetName(pendingPrimary.targetUserId)}`}
+              {pendingPrimary.type === 'addHeart' && 'REINFORCE ARMOR (+1 â™¥)'}
+              {pendingPrimary.type === 'upgradeRange' && 'UPGRADE TARGETING'}
+            </span>
+            <span className="confirm-cost tactical">-{ACTION_COSTS[pendingPrimary.type]} AP</span>
+          </div>
         </div>
         <div className="confirm-actions">
           <button className="btn btn-ghost" onClick={onCancel} disabled={submitting}>ABORT</button>
@@ -109,7 +103,7 @@ export default function ActionPanel({
     if (apPickMode) {
       return (
         <div className="action-panel secondary-phase">
-          <div className="secondary-phase-header tactical">âœ“ SELECT AMOUNT TO SEND</div>
+          <div className="secondary-phase-header tactical">✓ SELECT AMOUNT TO SEND</div>
           <div className="ap-amount-row">
             {[1, 2, 3].map(n => (
               <button key={n}
@@ -137,7 +131,7 @@ export default function ActionPanel({
     }
     return (
       <div className="action-panel secondary-phase">
-        <div className="secondary-phase-header tactical">âœ“ PRIMARY COMPLETE â€” SELECT SECONDARY ORDER</div>
+        <div className="secondary-phase-header tactical">✓ PRIMARY ACTION COMPLETE</div>
         <div className="action-group">
           <div className="action-grid">
             <ActionButton
@@ -258,16 +252,7 @@ export default function ActionPanel({
                 setPhase('confirm');
               }}
             />
-            <ActionButton
-              label="IDLE"
-              icon="â—Œ"
-              cost={0}
-              ap={ap}
-              onClick={() => {
-                setPendingPrimary({ type: 'idle' });
-                setPhase('confirm');
-              }}
-            />
+
           </div>
         </div>
       </div>

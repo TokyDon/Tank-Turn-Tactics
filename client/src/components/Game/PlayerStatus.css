@@ -76,6 +76,12 @@
   letter-spacing: 0.1em;
   animation: blink-amber 1s step-end infinite;
 }
+.status-primary-done {
+  font-size: 11px;
+  color: var(--amber-text);
+  letter-spacing: 0.1em;
+  opacity: 0.85;
+}
 @keyframes blink-amber {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }

@@ -41,7 +41,9 @@ export default function PlayerStatus({ player, canAct, allActed, pendingCount }:
             )}
           </div>
         ) : canAct ? (
-          <span className="status-your-turn">YOUR TURN</span>
+          player.hasTakenPrimary
+            ? <span className="status-primary-done tactical">✓ PRIMARY COMPLETE</span>
+            : <span className="status-your-turn">YOUR TURN</span>
         ) : null}
 
         {!player.isDowned && (
