@@ -108,6 +108,16 @@
   background: rgba(207, 40, 40, 0.2);
 }
 
+/* Secondary action target (send heart / send AP) */
+.cell-secondary-target {
+  background: rgba(80, 160, 255, 0.08);
+  border-color: rgba(80, 160, 255, 0.35) !important;
+  cursor: crosshair;
+}
+.cell-secondary-target:hover {
+  background: rgba(80, 160, 255, 0.2);
+}
+
 /* Self cell */
 .cell-self {
   background: rgba(212, 134, 10, 0.08);

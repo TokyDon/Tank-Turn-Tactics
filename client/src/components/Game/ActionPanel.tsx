@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import type { GamePlayer, GameState, PrimaryAction, SecondaryAction } from '../../types/game';
 import type { Phase } from './Game';
 import './ActionPanel.css';
@@ -8,6 +8,8 @@ interface Props {
   game: GameState;
   phase: string;
   pendingPrimary: PrimaryAction | null;
+  pendingSecondaryAction: SecondaryAction | null;
+  setPendingSecondaryAction: (a: SecondaryAction | null) => void;
   submitting: boolean;
   canAct: boolean;
   setPhase: (p: Phase) => void;
@@ -24,24 +26,23 @@ const ACTION_COSTS: Record<string, number> = {
 export default function ActionPanel({
   me, game, phase,
   pendingPrimary,
+  pendingSecondaryAction, setPendingSecondaryAction,
   submitting, canAct,
   setPhase, setPendingPrimary,
   onSubmitPrimary, onSubmitSecondary, onCancel
 }: Props) {
-  const [secMode, setSecMode] = useState<null | 'heart' | 'ap'>(null);
   const [giftAmount, setGiftAmount] = useState(1);
+  const [apPickMode, setApPickMode] = useState(false);
 
   useEffect(() => {
-    if (phase === 'idle') { setSecMode(null); setGiftAmount(1); }
+    if (phase === 'idle') { setApPickMode(false); setGiftAmount(1); }
+    if (phase === 'secondary') { setApPickMode(false); }
   }, [phase]);
 
   if (!me || me.isDowned) return null;
 
   const ap = me.ap ?? 0;
-
-  // Heart target list: include downed players who can be revived
   const heartTargets = game.players.filter(p => !p.isMe && (!p.isDowned || p.canRevive));
-  // AP target list: alive players only
   const apTargets = game.players.filter(p => !p.isDowned && !p.isMe);
 
   if (me.hasTakenTurn) {
@@ -69,60 +70,7 @@ export default function ActionPanel({
     return id ? (game.players.find(p => p.userId === id)?.username ?? id) : null;
   }
 
-  function renderInlinePicker() {
-    if (secMode === 'heart') {
-      return (
-        <div className="secondary-inline-picker">
-          <div className="secondary-picker-label tactical">SEND ♥ TO:</div>
-          <div className="secondary-target-list">
-            {heartTargets.map(p => (
-              <button key={p.userId} className={`secondary-target-btn tactical${p.isDowned ? ' target-downed' : ''}`}
-                onClick={() => {
-                  onSubmitSecondary({ type: 'giveHeart', targetUserId: p.userId });
-                  setSecMode(null);
-                }}>
-                <span className="sec-target-dot" style={{ background: p.color }} />
-                {p.username}
-                {p.isDowned && <span className="sec-target-status tactical">↑ REVIVE</span>}
-              </button>
-            ))}
-          </div>
-          <button className="btn btn-ghost btn-sm btn-full" onClick={() => setSecMode(null)}>CANCEL</button>
-        </div>
-      );
-    }
-    if (secMode === 'ap') {
-      return (
-        <div className="secondary-inline-picker">
-          <div className="secondary-picker-label tactical">TRANSFER AP — PICK AMOUNT THEN TARGET:</div>
-          <div className="ap-amount-row">
-            {[1, 2, 3].map(n => (
-              <button key={n}
-                className={`btn btn-sm ${giftAmount === n ? 'btn-amber' : 'btn-ghost'}`}
-                onClick={() => setGiftAmount(n)} disabled={n > ap}
-              >{n} AP</button>
-            ))}
-          </div>
-          <div className="secondary-target-list">
-            {apTargets.map(p => (
-              <button key={p.userId} className="secondary-target-btn tactical"
-                onClick={() => {
-                  onSubmitSecondary({ type: 'giveAP', targetUserId: p.userId, amount: giftAmount });
-                  setSecMode(null);
-                }}>
-                <span className="sec-target-dot" style={{ background: p.color }} />
-                {p.username}
-              </button>
-            ))}
-          </div>
-          <button className="btn btn-ghost btn-sm btn-full" onClick={() => setSecMode(null)}>CANCEL</button>
-        </div>
-      );
-    }
-    return null;
-  }
-
-  // Confirm phase — primary action only
+  // Confirm phase â€” primary action only
   if (phase === 'confirm' && pendingPrimary) {
     return (
       <div className="action-panel confirm-phase">
@@ -132,9 +80,9 @@ export default function ActionPanel({
             <div className="confirm-row">
               <span className="confirm-label">PRIMARY</span>
               <span className="confirm-value">
-                {pendingPrimary.type === 'move' && `MOVE → [${pendingPrimary.x},${pendingPrimary.y}]`}
+                {pendingPrimary.type === 'move' && `MOVE â†’ [${pendingPrimary.x},${pendingPrimary.y}]`}
                 {pendingPrimary.type === 'attack' && `ATTACK ${targetName(pendingPrimary.targetUserId)}`}
-                {pendingPrimary.type === 'addHeart' && 'REINFORCE ARMOR (+1 ♥)'}
+                {pendingPrimary.type === 'addHeart' && 'REINFORCE ARMOR (+1 â™¥)'}
                 {pendingPrimary.type === 'upgradeRange' && 'UPGRADE TARGETING'}
               </span>
               <span className="confirm-cost tactical">-{ACTION_COSTS[pendingPrimary.type]} AP</span>
@@ -142,7 +90,7 @@ export default function ActionPanel({
           ) : (
             <div className="confirm-row confirm-row-idle">
               <span className="confirm-label">PRIMARY</span>
-              <span className="confirm-value-idle tactical">IDLE — HOLD POSITION</span>
+              <span className="confirm-value-idle tactical">IDLE â€” HOLD POSITION</span>
             </div>
           )}
         </div>
@@ -156,46 +104,90 @@ export default function ActionPanel({
     );
   }
 
-  // Secondary phase — primary already committed, pick optional secondary
+  // Secondary phase â€” pick optional secondary action, then select target on grid
   if (phase === 'secondary') {
+    if (apPickMode) {
+      return (
+        <div className="action-panel secondary-phase">
+          <div className="secondary-phase-header tactical">âœ“ SELECT AMOUNT TO SEND</div>
+          <div className="ap-amount-row">
+            {[1, 2, 3].map(n => (
+              <button key={n}
+                className={`btn btn-sm ${giftAmount === n ? 'btn-amber' : 'btn-ghost'}`}
+                onClick={() => setGiftAmount(n)} disabled={n > ap}
+              >{n} AP</button>
+            ))}
+          </div>
+          <div className="secondary-phase-hint tactical">THEN TAP A PLAYER ON THE MAP</div>
+          <div className="secondary-confirm-row">
+            <button className="btn btn-ghost btn-sm" onClick={() => setApPickMode(false)}>BACK</button>
+            <button
+              className="btn btn-amber btn-sm"
+              disabled={apTargets.length === 0}
+              onClick={() => {
+                setPendingSecondaryAction({ type: 'giveAP', amount: giftAmount });
+                setPhase('select-secondary');
+              }}
+            >
+              SELECT TARGET â†’
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="action-panel secondary-phase">
-        {secMode ? renderInlinePicker() : (
-          <>
-            <div className="secondary-phase-header tactical">✓ PRIMARY COMPLETE — SELECT SECONDARY ORDER</div>
-            <div className="action-group">
-              <div className="action-grid">
-                <ActionButton
-                  label="SEND ♥"
-                  icon="♥"
-                  cost={0}
-                  ap={ap}
-                  green
-                  onClick={() => setSecMode('heart')}
-                />
-                <ActionButton
-                  label="SEND AP"
-                  icon="⚡"
-                  cost={1}
-                  ap={ap}
-                  onClick={() => setSecMode('ap')}
-                />
-              </div>
-            </div>
-            <button
-              className="btn btn-ghost btn-full"
-              onClick={() => onSubmitSecondary(null)}
-              disabled={submitting}
-            >
-              {submitting ? 'TRANSMITTING...' : 'END TURN (NO SECONDARY)'}
-            </button>
-          </>
-        )}
+        <div className="secondary-phase-header tactical">âœ“ PRIMARY COMPLETE â€” SELECT SECONDARY ORDER</div>
+        <div className="action-group">
+          <div className="action-grid">
+            <ActionButton
+              label="SEND â™¥"
+              icon="â™¥"
+              cost={0}
+              ap={ap}
+              green
+              disabled={heartTargets.length === 0}
+              onClick={() => {
+                setPendingSecondaryAction({ type: 'giveHeart' });
+                setPhase('select-secondary');
+              }}
+            />
+            <ActionButton
+              label="SEND AP"
+              icon="âš¡"
+              cost={1}
+              ap={ap}
+              disabled={apTargets.length === 0}
+              onClick={() => setApPickMode(true)}
+            />
+          </div>
+        </div>
+        <button
+          className="btn btn-ghost btn-sm btn-full"
+          style={{ fontSize: '11px', opacity: 0.6 }}
+          onClick={() => onSubmitSecondary(null)}
+          disabled={submitting}
+        >
+          {submitting ? 'TRANSMITTING...' : 'â†© SKIP SECONDARY'}
+        </button>
       </div>
     );
   }
 
-  // Selection phases
+  // Select secondary target on the grid
+  if (phase === 'select-secondary') {
+    const hint = pendingSecondaryAction?.type === 'giveHeart'
+      ? 'SEND â™¥ â€” TAP A PLAYER ON THE MAP'
+      : `SEND ${pendingSecondaryAction?.amount ?? 1} AP â€” TAP A PLAYER ON THE MAP`;
+    return (
+      <div className="action-panel selecting">
+        <div className="selecting-hint tactical">{hint}</div>
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>CANCEL</button>
+      </div>
+    );
+  }
+
+  // Selection phases (primary)
   if (phase === 'select-move') {
     return (
       <div className="action-panel selecting">
@@ -207,108 +199,78 @@ export default function ActionPanel({
   if (phase === 'select-attack') {
     return (
       <div className="action-panel selecting">
-        <div className="selecting-hint tactical">TAP AN ENEMY WITHIN RANGE ◎{me.range}</div>
+        <div className="selecting-hint tactical">TAP AN ENEMY WITHIN RANGE â—Ž{me.range}</div>
         <button className="btn btn-ghost btn-sm" onClick={onCancel}>CANCEL</button>
       </div>
     );
   }
 
-  // Default action selection
+  // Default: idle action selection
   return (
     <div className="action-panel">
-      <div className="idle-warning tactical">⚠ MISSING YOUR TURN ENTIRELY COSTS 1 HP — USE IDLE TO HOLD POSITION</div>
-      {secMode ? renderInlinePicker() : (
-        <>
-          <div className="panel-header">
-            <span className="panel-title tactical">SELECT ORDER</span>
-            <span className="panel-ap tactical">⚡ {ap} AP</span>
+      <div className="idle-warning tactical">âš  TAKE A PRIMARY ACTION OR LOSE 1 HP AT END OF TURN</div>
+      <div className="panel-header">
+        <span className="panel-title tactical">SELECT ORDER</span>
+        <span className="panel-ap tactical">âš¡ {ap} AP</span>
+      </div>
+      <div className="action-sections">
+        <div className="action-group">
+          <span className="action-group-label tactical">PRIMARY</span>
+          <div className="action-grid">
+            <ActionButton
+              label="MOVE"
+              icon="â†‘"
+              cost={1}
+              ap={ap}
+              onClick={() => {
+                setPendingPrimary({ type: 'move' });
+                setPhase('select-move');
+              }}
+            />
+            <ActionButton
+              label="ATTACK"
+              icon="âŠ•"
+              cost={1}
+              ap={ap}
+              danger
+              onClick={() => {
+                setPendingPrimary({ type: 'attack' });
+                setPhase('select-attack');
+              }}
+            />
+            <ActionButton
+              label="+ HEART"
+              icon="â™¥"
+              cost={3}
+              ap={ap}
+              onClick={() => {
+                setPendingPrimary({ type: 'addHeart' });
+                setPhase('confirm');
+              }}
+            />
+            <ActionButton
+              label="RANGE++"
+              icon="â—Ž"
+              cost={3}
+              ap={ap}
+              onClick={() => {
+                setPendingPrimary({ type: 'upgradeRange' });
+                setPhase('confirm');
+              }}
+            />
+            <ActionButton
+              label="IDLE"
+              icon="â—Œ"
+              cost={0}
+              ap={ap}
+              onClick={() => {
+                setPendingPrimary({ type: 'idle' });
+                setPhase('confirm');
+              }}
+            />
           </div>
-
-          <div className="action-sections">
-            {/* Primary actions */}
-            <div className="action-group">
-              <span className="action-group-label tactical">PRIMARY</span>
-              <div className="action-grid">
-                <ActionButton
-                  label="MOVE"
-                  icon="↑"
-                  cost={1}
-                  ap={ap}
-                  onClick={() => {
-                    setPendingPrimary({ type: 'move' });
-                    setPhase('select-move');
-                  }}
-                />
-                <ActionButton
-                  label="ATTACK"
-                  icon="⊕"
-                  cost={1}
-                  ap={ap}
-                  danger
-                  onClick={() => {
-                    setPendingPrimary({ type: 'attack' });
-                    setPhase('select-attack');
-                  }}
-                />
-                <ActionButton
-                  label="+ HEART"
-                  icon="♥"
-                  cost={3}
-                  ap={ap}
-                  onClick={() => {
-                    setPendingPrimary({ type: 'addHeart' });
-                    setPhase('confirm');
-                  }}
-                />
-                <ActionButton
-                  label="RANGE++"
-                  icon="◎"
-                  cost={3}
-                  ap={ap}
-                  onClick={() => {
-                    setPendingPrimary({ type: 'upgradeRange' });
-                    setPhase('confirm');
-                  }}
-                />
-                <ActionButton
-                  label="IDLE"
-                  icon="◌"
-                  cost={0}
-                  ap={ap}
-                  onClick={() => {
-                    setPendingPrimary({ type: 'idle' });
-                    setPhase('confirm');
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Secondary actions — only show in primary selection phase (before primary submitted) */}
-            <div className="action-group">
-              <span className="action-group-label tactical">SECONDARY (AFTER PRIMARY)</span>
-              <div className="action-grid">
-                <ActionButton
-                  label="SEND ♥"
-                  icon="♥"
-                  cost={0}
-                  ap={ap}
-                  green
-                  disabled
-                  onClick={() => {}}
-                />
-                <ActionButton
-                  label="SEND AP"
-                  icon="⚡"
-                  cost={1}
-                  ap={ap}
-                  disabled
-                  onClick={() => {}}
-                />
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -330,5 +292,3 @@ function ActionButton({
       <span className="action-label">{label}</span>
       {cost > 0 && <span className="action-cost tactical">-{cost} AP</span>}
     </button>
-  );
-}

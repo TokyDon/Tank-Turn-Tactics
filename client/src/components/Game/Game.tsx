@@ -12,11 +12,12 @@ import './Game.css';
 interface Props { onLeave: () => void; }
 
 export type Phase =
-  | 'idle'          // no action selected yet
-  | 'select-move'   // picking a cell to move to
-  | 'select-attack' // picking a player to attack
-  | 'confirm'       // reviewing primary before submitting
-  | 'secondary';    // primary done — optionally pick secondary action
+  | 'idle'             // no action selected yet
+  | 'select-move'      // picking a cell to move to
+  | 'select-attack'    // picking a player to attack
+  | 'confirm'          // reviewing primary before submitting
+  | 'secondary'        // primary done — optionally pick secondary action
+  | 'select-secondary'; // picking a grid target for secondary action
 
 export default function Game({ onLeave }: Props) {
   const { game, user, refreshGame, clearGame } = useGame();
@@ -29,6 +30,7 @@ export default function Game({ onLeave }: Props) {
   const [forcingTurn, setForcingTurn] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deletingGame, setDeletingGame] = useState(false);
+  const [pendingSecondaryAction, setPendingSecondaryAction] = useState<SecondaryAction | null>(null);
   const [tab, setTab] = useState<'grid' | 'log' | 'players'>('grid');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -85,6 +87,7 @@ export default function Game({ onLeave }: Props) {
       await api.takeSecondaryAction(game.id, sa);
       await refreshGame();
       setPhase('idle');
+      setPendingSecondaryAction(null);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : 'Action failed');
     } finally {
@@ -169,10 +172,19 @@ export default function Game({ onLeave }: Props) {
       setPendingPrimary({ type: 'attack', targetUserId: target.userId });
       setPhase('confirm');
     }
+    if (phase === 'select-secondary' && pendingSecondaryAction) {
+      submitSecondary({ ...pendingSecondaryAction, targetUserId: target.userId });
+    }
   }
 
   function cancelAction() {
-    // Only cancel if primary hasn't been submitted yet
+    if (phase === 'select-secondary') {
+      // Cancel target selection — return to secondary picker
+      setPendingSecondaryAction(null);
+      setPhase('secondary');
+      return;
+    }
+    // Only cancel primary if it hasn't been submitted yet
     if (!me?.hasTakenPrimary) {
       setPendingPrimary(null);
       setPhase('idle');
@@ -183,6 +195,15 @@ export default function Game({ onLeave }: Props) {
 
   const canAct = me && !me.isDowned && !me.hasTakenTurn && game.status === 'active';
   const isHost = game.players[0]?.userId === user.id;
+
+  // Players valid for secondary targeting — used to highlight grid cells
+  const secondaryTargetIds: Set<string> = (() => {
+    if (phase !== 'select-secondary' || !pendingSecondaryAction) return new Set<string>();
+    const targets = pendingSecondaryAction.type === 'giveHeart'
+      ? game.players.filter(p => !p.isMe && (!p.isDowned || p.canRevive))
+      : game.players.filter(p => !p.isMe && !p.isDowned);
+    return new Set(targets.map(p => p.userId));
+  })();
   const turnTimeLeft = game.turnStartedAt
     ? Math.max(0, 24 * 60 * 60 - (Date.now() / 1000 - game.turnStartedAt))
     : null;
@@ -344,6 +365,7 @@ export default function Game({ onLeave }: Props) {
                 game={game}
                 me={me || null}
                 phase={phase}
+                secondaryTargetIds={secondaryTargetIds}
                 onCellClick={handleCellClick}
                 onPlayerClick={handlePlayerClick}
               />
@@ -358,7 +380,9 @@ export default function Game({ onLeave }: Props) {
                     key={p.userId}
                     className={`unit-row card ${p.isDowned ? 'downed' : ''} ${p.isMe ? 'is-me' : ''}`}
                     onClick={() => {
-                      if (canAct && !p.isMe && !p.isDowned && phase === 'select-attack') {
+                      if (canAct && !p.isMe && phase === 'select-secondary' && secondaryTargetIds.has(p.userId)) {
+                        handlePlayerClick(p);
+                      } else if (canAct && !p.isMe && !p.isDowned && phase === 'select-attack') {
                         handlePlayerClick(p);
                       }
                     }}
@@ -411,6 +435,8 @@ export default function Game({ onLeave }: Props) {
               game={game}
               phase={phase}
               pendingPrimary={pendingPrimary}
+              pendingSecondaryAction={pendingSecondaryAction}
+              setPendingSecondaryAction={setPendingSecondaryAction}
               submitting={submitting}
               canAct={!!canAct}
               setPhase={setPhase}

@@ -217,6 +217,17 @@
   border-radius: var(--radius-sm);
   border: 1px solid rgba(212, 134, 10, 0.25);
 }
+.secondary-phase-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+.secondary-confirm-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--sp-2);
+}
 
 /* Acted state */
 .action-panel.acted {

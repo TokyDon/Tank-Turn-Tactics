@@ -9,11 +9,12 @@ interface Props {
   game: GameState;
   me: GamePlayer | null;
   phase: string;
+  secondaryTargetIds?: Set<string>;
   onCellClick: (x: number, y: number) => void;
   onPlayerClick: (player: GamePlayer) => void;
 }
 
-export default function Grid({ game, me, phase, onCellClick, onPlayerClick }: Props) {
+export default function Grid({ game, me, phase, secondaryTargetIds = new Set(), onCellClick, onPlayerClick }: Props) {
   const size = game.activeGridSize;
   const [zoom, setZoom] = useState(1.0);
   const [popup, setPopup] = useState<GamePlayer | null>(null);
@@ -71,6 +72,9 @@ export default function Grid({ game, me, phase, onCellClick, onPlayerClick }: Pr
     if (phase === 'select-attack' && rangeSet.has(key)) {
       if (player && !player.isDowned && !player.isMe) classes.push('cell-attack-target');
     }
+    if (phase === 'select-secondary' && player && secondaryTargetIds.has(player.userId)) {
+      classes.push('cell-secondary-target');
+    }
     if (me && x === me.x && y === me.y) classes.push('cell-self');
     return classes.join(' ');
   }
@@ -110,9 +114,15 @@ export default function Grid({ game, me, phase, onCellClick, onPlayerClick }: Pr
                   key={key}
                   className={cellClass(x, y, player)}
                   onClick={() => {
-                    if (player && !player.isMe && !player.isDowned) {
-                      if (phase === 'idle') setPopup(player);
-                      else onPlayerClick(player);
+                    const isSecondaryTarget = player && secondaryTargetIds.has(player.userId);
+                    if (player && !player.isMe && (isSecondaryTarget || !player.isDowned)) {
+                      if (isSecondaryTarget) {
+                        onPlayerClick(player);
+                      } else if (phase === 'idle') {
+                        setPopup(player);
+                      } else {
+                        onPlayerClick(player);
+                      }
                     } else {
                       onCellClick(x, y);
                     }
