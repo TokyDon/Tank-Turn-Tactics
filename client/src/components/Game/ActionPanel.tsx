@@ -276,4 +276,5 @@ function ActionButton({
       <span className="action-icon">{icon}</span>
       <span className="action-label">{label}</span>
       {cost > 0 && <span className="action-cost tactical">-{cost} AP</span>}
-    </button>
+    </button>  );
+}
