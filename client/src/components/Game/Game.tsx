@@ -4,6 +4,7 @@ import * as api from '../../services/api';
 import type { PrimaryAction, SecondaryAction, GamePlayer } from '../../types/game';
 import Grid from './Grid';
 import ActionPanel from './ActionPanel';
+import { gridLabel } from '../../utils/grid';
 import PlayerStatus from './PlayerStatus';
 import GameLog from './GameLog';
 import JuryPanel from './JuryPanel';
@@ -447,7 +448,7 @@ export default function Game({ onLeave }: Props) {
                             <span key={i} className="heart-pip empty">♡</span>
                           ))}
                         </span>
-                        <span className="unit-pos">[{p.x},{p.y}]</span>
+                        <span className="unit-pos">{gridLabel(p.x, p.y)}</span>
                         <span className="unit-range">◎ {p.range}</span>
                         {p.isMe && p.ap !== null && <span className="unit-ap amber">⚡{p.ap} AP</span>}
                       </div>

@@ -1,4 +1,5 @@
 import type { GamePlayer } from '../../types/game';
+import { gridLabel } from '../../utils/grid';
 import './PlayerStatus.css';
 
 interface Props {
@@ -50,7 +51,7 @@ export default function PlayerStatus({ player, canAct, allActed, pendingCount }:
           <div className="status-stats tactical">
             {player.ap !== null && <span className="stat-ap">⚡ {player.ap}</span>}
             <span className="stat-range">◎ {player.range}</span>
-            <span className="stat-pos">[{player.x},{player.y}]</span>
+            <span className="stat-pos">{gridLabel(player.x, player.y)}</span>
           </div>
         )}
       </div>

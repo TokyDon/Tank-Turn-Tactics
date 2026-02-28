@@ -10,6 +10,12 @@ const PLAYER_COLORS = [
   '#10b981', '#6366f1', '#84cc16', '#0ea5e9'
 ];
 
+const GRID_COLS = 'ABCDEFGHIJKLMNOP';
+function gridLabel(x, y) {
+  const col = GRID_COLS[x] ?? x.toString();
+  return `${col}${y + 1}`;
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function chebyshev(x1, y1, x2, y2) {
@@ -185,7 +191,7 @@ async function takePrimaryAction(gameId, userId, primaryAction) {
       throw new Error('Out of bounds');
     apCost = 1;
     await query('UPDATE game_players SET x=$1, y=$2 WHERE game_id=$3 AND user_id=$4', [x, y, gameId, userId]);
-    logs.push({ type: 'action', msg: `${player.username} moved to [${x},${y}]` });
+    logs.push({ type: 'action', msg: `${player.username} moved to ${gridLabel(x, y)}` });
     await collectItems(gameId, userId, player, x, y, logs);
 
   } else if (pa.type === 'attack') {
@@ -347,7 +353,7 @@ async function takeAction(gameId, userId, primaryAction, secondaryAction) {
       throw new Error('Out of bounds');
     apCost = 1;
     await query('UPDATE game_players SET x=$1, y=$2 WHERE game_id=$3 AND user_id=$4', [x, y, gameId, userId]);
-    logs.push({ type: 'action', msg: `${player.username} moved to [${x},${y}]` });
+    logs.push({ type: 'action', msg: `${player.username} moved to ${gridLabel(x, y)}` });
     await collectItems(gameId, userId, player, x, y, logs);
 
   } else if (pa.type === 'attack') {
@@ -686,7 +692,7 @@ async function spawnItem(gameId, itemType, value = 1) {
   );
 
   const label = itemType === 'heart' ? '♥ field heart' : `supply drop (${value} AP)`;
-  await addLog(gameId, game.current_turn, 'spawn', `A ${label} appeared at [${pos.x},${pos.y}]`);
+  await addLog(gameId, game.current_turn, 'spawn', `A ${label} appeared at ${gridLabel(pos.x, pos.y)}`);
   return { id, x: pos.x, y: pos.y, item_type: itemType, value };
 }
 

@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import type { GamePlayer, GameState, PrimaryAction, SecondaryAction } from '../../types/game';
 import type { Phase } from './Game';
+import { gridLabel } from '../../utils/grid';
 import './ActionPanel.css';
 
 interface Props {
@@ -80,7 +81,7 @@ export default function ActionPanel({
           <div className="confirm-row">
             <span className="confirm-label">PRIMARY</span>
             <span className="confirm-value">
-              {pendingPrimary.type === 'move' && `MOVE → [${pendingPrimary.x},${pendingPrimary.y}]`}
+              {pendingPrimary.type === 'move' && `MOVE → ${gridLabel(pendingPrimary.x ?? 0, pendingPrimary.y ?? 0)}`}
               {pendingPrimary.type === 'attack' && `ATTACK ${targetName(pendingPrimary.targetUserId)}`}
               {pendingPrimary.type === 'addHeart' && 'REINFORCE ARMOR (+1 ♥)'}
               {pendingPrimary.type === 'upgradeRange' && 'UPGRADE TARGETING'}
