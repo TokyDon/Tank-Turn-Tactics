@@ -164,9 +164,11 @@ export default function ActionPanel({
   const hasTakenPrimary = !!me.hasTakenPrimary;
   return (
     <div className="action-panel">
+      {/* DISABLED: idle warning — primary action no longer mandatory
       {!hasTakenPrimary && (
         <div className="idle-warning tactical">⚠ TAKE A PRIMARY ACTION OR LOSE 1 HP AT END OF TURN</div>
       )}
+      */}
       <div className="action-sections">
         <div className="action-group">
           <span className="action-group-label tactical">

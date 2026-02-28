@@ -502,7 +502,9 @@ async function endTurn(gameId) {
     [gameId]
   );
 
-  // Penalise players who submitted no primary at all
+  // DISABLED: Penalise players who submitted no primary at all
+  // (kept for potential reactivation — removing this means missing a turn has no HP penalty)
+  /*
   const { rows: inactive } = await query(
     'SELECT * FROM game_players WHERE game_id=$1 AND is_downed=0 AND has_taken_turn=0',
     [gameId]
@@ -532,6 +534,7 @@ async function endTurn(gameId) {
       await addLog(gameId, game.current_turn, 'system', `${p.username} missed their turn (−1 ♥)`);
     }
   }
+  */
 
   // Process jury votes for this turn
   await processJuryVotes(gameId, game.current_turn);
