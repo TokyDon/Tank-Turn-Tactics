@@ -170,6 +170,19 @@ select.input option { background: var(--bg-elevated); }
   flex-wrap: wrap;
 }
 
+/* Status-based left-border accent on game cards */
+.game-row.status-lobby  { border-left: 3px solid var(--green-text, #22c55e); }
+.game-row.status-active { border-left: 3px solid var(--amber, #d4860a); }
+.game-row.status-ended  { border-left: 3px solid var(--border-subtle); }
+
+/* Smaller tag variant for use inside meta rows */
+.tag.tag-xs {
+  font-size: 9px;
+  padding: 1px 5px;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
+}
+
 /* Allow password/delete rows to expand below main row content */
 .game-row {
   flex-wrap: wrap;

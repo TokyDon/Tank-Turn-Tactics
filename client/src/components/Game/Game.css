@@ -256,9 +256,12 @@
   gap: var(--sp-3);
 }
 .waiting-title {
-  font-size: 22px;
-  color: var(--text-primary);
-  letter-spacing: 0.06em;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .waiting-subtitle {
   font-size: 10px;
@@ -269,8 +272,9 @@
 .waiting-players {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   width: 100%;
+  padding: var(--sp-4);
 }
 .waiting-list {
   display: flex;

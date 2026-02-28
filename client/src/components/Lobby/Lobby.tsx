@@ -266,18 +266,19 @@ export default function Lobby({ onEnterGame }: Props) {
                 const showDeleteConfirm = deleteTarget === g.id;
                 const showJoinPrompt = joinTarget === g.id;
                 return (
-                  <div key={g.id} className={`game-row card${showDeleteConfirm ? ' delete-confirm-open' : ''}`}>
+                  <div key={g.id} className={`game-row card status-${g.status}${showDeleteConfirm ? ' delete-confirm-open' : ''}`}>
                     <div className="game-row-info">
                       <div className="game-row-top">
                         <span className="game-name">
                           {g.has_password && <span className="lock-icon" title="Access code required">🔒 </span>}
                           {g.name}
                         </span>
-                        <span className={`tag ${g.status === 'active' ? 'tag-amber' : g.status === 'ended' ? 'tag-muted' : 'tag-green'}`}>
-                          {g.status.toUpperCase()}
-                        </span>
                       </div>
                       <div className="game-row-meta tactical">
+                        <span className={`tag tag-xs ${g.status === 'active' ? 'tag-amber' : g.status === 'ended' ? 'tag-muted' : 'tag-green'}`}>
+                          {g.status.toUpperCase()}
+                        </span>
+                        <span>·</span>
                         <span>HOST: {g.host_name.toUpperCase()}</span>
                         <span>·</span>
                         <span>{g.player_count}/{g.max_players} UNITS</span>
