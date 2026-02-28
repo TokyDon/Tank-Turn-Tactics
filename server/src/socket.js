@@ -23,10 +23,14 @@ function initSocket(io) {
     // Each user joins their personal room so DMs can be delivered in real time
     socket.join(`user:${socket.userId}`);
 
-    socket.on('join-game', (gameId) => {
+    socket.on('join-game', async (gameId) => {
       socket.join(`game:${gameId}`);
-      const state = getGameState(gameId, socket.userId);
-      if (state) socket.emit('game-state', state);
+      try {
+        const state = await getGameState(gameId, socket.userId);
+        if (state) socket.emit('game-state', state);
+      } catch (err) {
+        console.error('[socket join-game error]', err);
+      }
     });
 
     socket.on('leave-game', (gameId) => {

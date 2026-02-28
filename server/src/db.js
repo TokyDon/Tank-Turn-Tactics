@@ -139,7 +139,7 @@ async function init() {
       sender_username TEXT NOT NULL,
       recipient_id TEXT NOT NULL,
       content TEXT NOT NULL,
-      created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT * 1000,
+      created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT,
       read_at BIGINT DEFAULT NULL,
       FOREIGN KEY (sender_id) REFERENCES users(id),
       FOREIGN KEY (recipient_id) REFERENCES users(id)

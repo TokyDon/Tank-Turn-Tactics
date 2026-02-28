@@ -54,40 +54,51 @@ router.post('/', authMiddleware, async (req, res) => {
 // GET /api/messages/conversations — list all conversations with unread counts
 router.get('/conversations', authMiddleware, async (req, res) => {
   try {
-    const result = await query(
-      `SELECT
-        CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END AS other_id,
-        CASE WHEN sender_id = $1 THEN (SELECT username FROM users WHERE id = recipient_id LIMIT 1)
-             ELSE sender_username END AS other_username,
-        MAX(created_at) AS last_at,
-        (SELECT content FROM messages m2
-          WHERE (m2.sender_id = $1 AND m2.recipient_id = (CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END))
-             OR (m2.recipient_id = $1 AND m2.sender_id = (CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END))
-          ORDER BY m2.created_at DESC LIMIT 1) AS last_message,
-        COUNT(*) FILTER (WHERE recipient_id = $1 AND read_at IS NULL) AS unread_count
-       FROM messages
-       WHERE sender_id = $1 OR recipient_id = $1
-       GROUP BY other_id, other_username
-       ORDER BY last_at DESC`,
+    // Last message per conversation partner using DISTINCT ON
+    const convoResult = await query(
+      `SELECT DISTINCT ON (other_id)
+         other_id,
+         other_username,
+         content AS last_message,
+         created_at AS last_at
+       FROM (
+         SELECT
+           CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END AS other_id,
+           CASE WHEN sender_id = $1 THEN (SELECT username FROM users WHERE id = recipient_id LIMIT 1)
+                ELSE sender_username END AS other_username,
+           content,
+           created_at
+         FROM messages
+         WHERE sender_id = $1 OR recipient_id = $1
+       ) sub
+       ORDER BY other_id, created_at DESC`,
       [req.userId]
     );
 
-    // Deduplicate (same pair may appear twice if both sides returned)
-    const seen = new Map();
-    for (const row of result.rows) {
-      const key = row.other_id;
-      if (!seen.has(key) || row.last_at > seen.get(key).lastAt) {
-        seen.set(key, {
-          userId: row.other_id,
-          username: row.other_username,
-          lastMessage: row.last_message || '',
-          lastAt: Number(row.last_at),
-          unreadCount: Number(row.unread_count),
-        });
-      }
-    }
+    // Unread counts per sender
+    const unreadResult = await query(
+      `SELECT sender_id, COUNT(*)::int AS unread_count
+       FROM messages
+       WHERE recipient_id = $1 AND read_at IS NULL
+       GROUP BY sender_id`,
+      [req.userId]
+    );
 
-    res.json({ conversations: [...seen.values()].sort((a, b) => b.lastAt - a.lastAt) });
+    const unreadMap = new Map(
+      unreadResult.rows.map(r => [r.sender_id, Number(r.unread_count)])
+    );
+
+    const conversations = convoResult.rows
+      .map(r => ({
+        userId: r.other_id,
+        username: r.other_username,
+        lastMessage: r.last_message || '',
+        lastAt: Number(r.last_at),
+        unreadCount: unreadMap.get(r.other_id) ?? 0,
+      }))
+      .sort((a, b) => b.lastAt - a.lastAt);
+
+    res.json({ conversations });
   } catch (err) {
     console.error('[conversations error]', err);
     res.status(500).json({ error: 'Failed to load conversations' });
