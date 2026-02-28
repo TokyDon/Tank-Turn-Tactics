@@ -1,0 +1,179 @@
+/* Full-tab chat screen */
+.gchat-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-canvas);
+}
+
+/* ─── Player list ─────────────────────────────────────────────────────── */
+.gchat-player-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.gchat-no-players {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: var(--sp-8);
+  text-align: center;
+}
+
+.gchat-player-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.gchat-player-row:hover {
+  border-color: var(--border-default);
+  background: var(--bg-elevated);
+}
+
+.gchat-player-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gchat-player-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.gchat-player-name {
+  font-size: 14px;
+  font-family: var(--font-tactical);
+  color: var(--text-primary);
+  letter-spacing: 0.05em;
+}
+
+.gchat-unread-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--amber);
+  color: #000;
+  font-size: 11px;
+  font-family: var(--font-tactical);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gchat-chevron {
+  font-size: 18px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ─── Thread view ─────────────────────────────────────────────────────── */
+.gchat-thread-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+
+.gchat-thread-name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--amber-text);
+  letter-spacing: 0.08em;
+}
+
+.gchat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.gchat-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  align-self: center;
+  margin-top: var(--sp-8);
+}
+
+.gchat-msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 78%;
+  align-self: flex-start;
+}
+
+.gchat-msg--mine {
+  align-self: flex-end;
+}
+
+.gchat-msg-content {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px 8px 8px 2px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.gchat-msg--mine .gchat-msg-content {
+  background: var(--amber-dim);
+  border-color: var(--border-amber);
+  border-radius: 8px 8px 2px 8px;
+}
+
+.gchat-msg-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  padding: 0 3px;
+}
+
+.gchat-msg--mine .gchat-msg-time {
+  text-align: right;
+}
+
+/* ─── Input ───────────────────────────────────────────────────────────── */
+.gchat-input-row {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-3);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+
+.gchat-input {
+  flex: 1;
+}

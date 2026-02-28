@@ -7,6 +7,7 @@ import ActionPanel from './ActionPanel';
 import PlayerStatus from './PlayerStatus';
 import GameLog from './GameLog';
 import JuryPanel from './JuryPanel';
+import GameChat from './GameChat';
 import './Game.css';
 
 interface Props { onLeave: () => void; }
@@ -31,7 +32,7 @@ export default function Game({ onLeave }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deletingGame, setDeletingGame] = useState(false);
   const [pendingSecondaryAction, setPendingSecondaryAction] = useState<SecondaryAction | null>(null);
-  const [tab, setTab] = useState<'grid' | 'log' | 'players'>('grid');
+  const [tab, setTab] = useState<'grid' | 'log' | 'players' | 'chat'>('grid');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Declared early (with optional chaining) so the useEffect below can reference it
@@ -361,11 +362,13 @@ export default function Game({ onLeave }: Props) {
       {game.status !== 'lobby' && (
         <>
           <div className="game-tabs">
-            {(['grid', 'players', 'log'] as const).map(t => (
-              <button key={t} className={`game-tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-                {t === 'grid' ? '⊕ MAP' : t === 'players' ? '⊟ UNITS' : '≡ LOG'}
-              </button>
-            ))}
+            <button className={`game-tab ${tab === 'grid' ? 'active' : ''}`} onClick={() => setTab('grid')}>
+              ⊕ MAP
+            </button>
+            <button className={`game-tab ${tab === 'chat' ? 'active' : ''}`} onClick={() => setTab('chat')}>
+              ✉ COMMS
+            </button>
+            {/* UNITS and LOG tabs kept in code but hidden from nav — may be restored later */}
           </div>
 
           {tab === 'grid' && (
@@ -459,6 +462,10 @@ export default function Game({ onLeave }: Props) {
             <div className="game-log-tab">
               <GameLog logs={game.logs} />
             </div>
+          )}
+
+          {tab === 'chat' && (
+            <GameChat game={game} user={user} />
           )}
 
           {/* Game ended */}

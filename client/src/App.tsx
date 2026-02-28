@@ -17,7 +17,7 @@ export default function App() {
         ? <Game onLeave={() => setView('lobby')} />
         : <Lobby onEnterGame={() => setView('game')} />
       }
-      <Chat />
+      {view !== 'game' && <Chat />}
     </ErrorBoundary>
   );
 }
