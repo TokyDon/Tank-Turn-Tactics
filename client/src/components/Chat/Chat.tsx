@@ -164,6 +164,7 @@ export default function Chat() {
         title="Messages"
       >
         <span className="chat-fab-icon">✉</span>
+        <span className="chat-fab-label tactical">COMMS</span>
         {!open && unreadTotal > 0 && (
           <span className="chat-fab-badge">{unreadTotal > 99 ? '99+' : unreadTotal}</span>
         )}

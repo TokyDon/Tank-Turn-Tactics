@@ -4,19 +4,24 @@
   bottom: 24px;
   right: 24px;
   z-index: 1000;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
+  height: 40px;
+  padding: 0 14px 0 10px;
+  border-radius: 20px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-amber);
   color: var(--amber-text);
-  font-size: 22px;
+  font-size: 16px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
   cursor: pointer;
   transition: background 0.15s, box-shadow 0.15s;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.chat-fab-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
 }
 
 .chat-fab:hover {

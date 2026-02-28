@@ -381,6 +381,30 @@ export default function Game({ onLeave }: Props) {
             </div>
           )}
 
+          {/* Action panel — only on the map tab */}
+          {tab === 'grid' && game.status === 'active' && (
+            <ActionPanel
+              me={me || null}
+              game={game}
+              phase={phase}
+              pendingPrimary={pendingPrimary}
+              pendingSecondaryAction={pendingSecondaryAction}
+              setPendingSecondaryAction={setPendingSecondaryAction}
+              submitting={submitting}
+              canAct={!!canAct}
+              setPhase={setPhase}
+              setPendingPrimary={setPendingPrimary}
+              onSubmitPrimary={submitPrimary}
+              onSubmitSecondary={submitSecondary}
+              onCancel={cancelAction}
+            />
+          )}
+
+          {/* Jury panel — only on map tab */}
+          {tab === 'grid' && me?.isDowned && game.status === 'active' && (
+            <JuryPanel game={game} me={me} />
+          )}
+
           {tab === 'players' && (
             <div className="game-players-tab">
               <div className="players-list">
@@ -435,30 +459,6 @@ export default function Game({ onLeave }: Props) {
             <div className="game-log-tab">
               <GameLog logs={game.logs} />
             </div>
-          )}
-
-          {/* Action Panel */}
-          {game.status === 'active' && (
-            <ActionPanel
-              me={me || null}
-              game={game}
-              phase={phase}
-              pendingPrimary={pendingPrimary}
-              pendingSecondaryAction={pendingSecondaryAction}
-              setPendingSecondaryAction={setPendingSecondaryAction}
-              submitting={submitting}
-              canAct={!!canAct}
-              setPhase={setPhase}
-              setPendingPrimary={setPendingPrimary}
-              onSubmitPrimary={submitPrimary}
-              onSubmitSecondary={submitSecondary}
-              onCancel={cancelAction}
-            />
-          )}
-
-          {/* Jury panel for downed players */}
-          {me?.isDowned && game.status === 'active' && (
-            <JuryPanel game={game} me={me} />
           )}
 
           {/* Game ended */}
