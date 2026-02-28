@@ -211,7 +211,7 @@ export default function ActionPanel({
               }}
             />
             <ActionButton
-              label="RANGE++"
+              label="RANGE +1"
               icon="◎"
               cost={3}
               ap={ap}
