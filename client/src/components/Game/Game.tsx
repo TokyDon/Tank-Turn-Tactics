@@ -34,6 +34,7 @@ export default function Game({ onLeave }: Props) {
   const [deletingGame, setDeletingGame] = useState(false);
   const [pendingSecondaryAction, setPendingSecondaryAction] = useState<SecondaryAction | null>(null);
   const [tab, setTab] = useState<'grid' | 'log' | 'players' | 'chat'>('grid');
+  const [chatUnread, setChatUnread] = useState(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Declared early (with optional chaining) so the useEffect below can reference it
@@ -367,7 +368,8 @@ export default function Game({ onLeave }: Props) {
               ⊕ MAP
             </button>
             <button className={`game-tab ${tab === 'chat' ? 'active' : ''}`} onClick={() => setTab('chat')}>
-              ✉ COMMS
+              <span>✉ COMMS</span>
+              {chatUnread > 0 && tab !== 'chat' && <span className="tab-unread-dot" />}
             </button>
             {/* UNITS and LOG tabs kept in code but hidden from nav — may be restored later */}
           </div>
@@ -466,7 +468,7 @@ export default function Game({ onLeave }: Props) {
           )}
 
           {tab === 'chat' && (
-            <GameChat game={game} user={user} />
+            <GameChat game={game} user={user} onUnreadChange={setChatUnread} />
           )}
 
           {/* Game ended */}

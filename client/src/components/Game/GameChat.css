@@ -69,6 +69,19 @@
   letter-spacing: 0.05em;
 }
 
+.gchat-player-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+.gchat-last-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
 .gchat-unread-badge {
   min-width: 20px;
   height: 20px;

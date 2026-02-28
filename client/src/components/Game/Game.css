@@ -115,6 +115,11 @@
 }
 .game-tab {
   flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 11px var(--sp-2);
   background: transparent;
   border: none;
@@ -235,6 +240,15 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Unread dot on tab */
+.tab-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red, #cf2020);
+  flex-shrink: 0;
 }
 
 /* Lobby waiting */

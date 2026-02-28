@@ -7,20 +7,45 @@ import './GameChat.css';
 interface Props {
   game: GameState;
   user: User;
+  onUnreadChange?: (total: number) => void;
 }
 
-export default function GameChat({ game, user }: Props) {
+interface ConvInfo { lastAt: number; unread: number; }
+
+export default function GameChat({ game, user, onUnreadChange }: Props) {
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
   const [activeUsername, setActiveUsername] = useState('');
   const [thread, setThread] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
-  // unread counts per player userId
-  const [unread, setUnread] = useState<Record<string, number>>({});
+  // per-player: last message timestamp + unread count
+  const [convInfo, setConvInfo] = useState<Record<string, ConvInfo>>({});
   const threadEndRef = useRef<HTMLDivElement>(null);
 
   const humanPlayers = game.players.filter(p => p.userId !== user.id && !p.isBot);
+
+  // --- Load conversations on mount to seed sort order + unread counts ---
+  useEffect(() => {
+    api.getConversations().then(({ conversations }) => {
+      setConvInfo(prev => {
+        const next = { ...prev };
+        for (const c of conversations) {
+          next[c.userId] = {
+            lastAt: c.lastAt,
+            unread: c.unreadCount,
+          };
+        }
+        return next;
+      });
+    }).catch(() => {});
+  }, []);
+
+  // --- Notify parent of total unread ---
+  useEffect(() => {
+    const total = humanPlayers.reduce((sum, p) => sum + (convInfo[p.userId]?.unread ?? 0), 0);
+    onUnreadChange?.(total);
+  }, [convInfo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Real-time incoming messages ---
   useEffect(() => {
@@ -28,11 +53,20 @@ export default function GameChat({ game, user }: Props) {
     const handle = (msg: Message) => {
       if (msg.recipientId !== user.id) return;
       if (activeUserId === msg.senderId) {
-        // Thread is open — append and mark read
         setThread(prev => [...prev, msg]);
         api.markRead(msg.senderId).catch(() => {});
+        setConvInfo(prev => ({
+          ...prev,
+          [msg.senderId]: { lastAt: msg.createdAt, unread: 0 },
+        }));
       } else {
-        setUnread(prev => ({ ...prev, [msg.senderId]: (prev[msg.senderId] ?? 0) + 1 }));
+        setConvInfo(prev => ({
+          ...prev,
+          [msg.senderId]: {
+            lastAt: msg.createdAt,
+            unread: (prev[msg.senderId]?.unread ?? 0) + 1,
+          },
+        }));
       }
     };
     socket.on('new-message', handle);
@@ -53,7 +87,10 @@ export default function GameChat({ game, user }: Props) {
       const { messages } = await api.getThread(userId);
       setThread(messages);
       await api.markRead(userId);
-      setUnread(prev => { const next = { ...prev }; delete next[userId]; return next; });
+      setConvInfo(prev => ({
+        ...prev,
+        [userId]: { lastAt: prev[userId]?.lastAt ?? 0, unread: 0 },
+      }));
     } catch {
       // silent
     } finally {
@@ -69,6 +106,10 @@ export default function GameChat({ game, user }: Props) {
     try {
       const { message } = await api.sendMessage(activeUserId, text, game.id);
       setThread(prev => [...prev, message]);
+      setConvInfo(prev => ({
+        ...prev,
+        [activeUserId]: { lastAt: message.createdAt, unread: prev[activeUserId]?.unread ?? 0 },
+      }));
     } catch {
       setDraft(text);
     } finally {
@@ -132,15 +173,24 @@ export default function GameChat({ game, user }: Props) {
     );
   }
 
+  // Sort players: those with conversations newest-first, then the rest alphabetically
+  const sortedPlayers = [...humanPlayers].sort((a, b) => {
+    const aLast = convInfo[a.userId]?.lastAt ?? 0;
+    const bLast = convInfo[b.userId]?.lastAt ?? 0;
+    if (bLast !== aLast) return bLast - aLast;
+    return a.username.localeCompare(b.username);
+  });
+
   // --- Player list view ---
   return (
     <div className="gchat-screen">
-      {humanPlayers.length === 0 ? (
+      {sortedPlayers.length === 0 ? (
         <div className="gchat-no-players tactical">NO HUMAN OPERATIVES IN THIS OPERATION</div>
       ) : (
         <div className="gchat-player-list">
-          {humanPlayers.map(p => {
-            const count = unread[p.userId] ?? 0;
+          {sortedPlayers.map(p => {
+            const info = convInfo[p.userId];
+            const count = info?.unread ?? 0;
             return (
               <button
                 key={p.userId}
@@ -152,7 +202,10 @@ export default function GameChat({ game, user }: Props) {
                   <span className="gchat-player-name">{p.username}</span>
                   {p.isDowned && <span className="tag tag-red">KIA</span>}
                 </div>
-                {count > 0 && <span className="gchat-unread-badge">{count}</span>}
+                <div className="gchat-player-meta">
+                  {info?.lastAt ? <span className="gchat-last-time tactical">{formatTime(info.lastAt)}</span> : null}
+                  {count > 0 && <span className="gchat-unread-badge">{count}</span>}
+                </div>
                 <span className="gchat-chevron tactical">›</span>
               </button>
             );
