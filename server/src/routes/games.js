@@ -4,9 +4,9 @@ const { createGame, joinGame, startGame, addBot, deleteGame, getGameState, getPu
 
 const router = express.Router();
 
-router.get('/', authMiddleware, (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    const games = getPublicGames();
+    const games = await getPublicGames();
     res.json({ games });
   } catch (err) {
     console.error('[games list error]', err);
@@ -14,7 +14,7 @@ router.get('/', authMiddleware, (req, res) => {
   }
 });
 
-router.post('/', authMiddleware, (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   const { name, shrinkEnabled, password } = req.body;
   if (!name || name.trim().length < 1) return res.status(400).json({ error: 'Game name required' });
   if (name.trim().length > 60) return res.status(400).json({ error: 'Game name too long (max 60 chars)' });
@@ -24,16 +24,16 @@ router.post('/', authMiddleware, (req, res) => {
   const maxPlayers = Math.min(20, Math.max(2,  parseInt(req.body.maxPlayers, 10) || 16));
 
   try {
-    const game = createGame(name.trim(), req.userId, { gridSize, maxPlayers, shrinkEnabled, password: password || null });
+    const game = await createGame(name.trim(), req.userId, { gridSize, maxPlayers, shrinkEnabled, password: password || null });
     res.json({ game });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.get('/:id', authMiddleware, (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
-    const state = getGameState(req.params.id, req.userId);
+    const state = await getGameState(req.params.id, req.userId);
     if (!state) return res.status(404).json({ error: 'Game not found' });
     res.json({ game: state });
   } catch (err) {
@@ -42,39 +42,39 @@ router.get('/:id', authMiddleware, (req, res) => {
   }
 });
 
-router.post('/:id/join', authMiddleware, (req, res) => {
+router.post('/:id/join', authMiddleware, async (req, res) => {
   const { password } = req.body;
   try {
-    const state = joinGame(req.params.id, req.userId, password || null);
+    const state = await joinGame(req.params.id, req.userId, password || null);
     res.json({ game: state });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.delete('/:id', authMiddleware, (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    deleteGame(req.params.id, req.userId);
+    await deleteGame(req.params.id, req.userId);
     res.json({ deleted: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.post('/:id/start', authMiddleware, (req, res) => {
+router.post('/:id/start', authMiddleware, async (req, res) => {
   try {
-    const state = startGame(req.params.id, req.userId);
+    const state = await startGame(req.params.id, req.userId);
     res.json({ game: state });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.post('/:id/bots', authMiddleware, (req, res) => {
+router.post('/:id/bots', authMiddleware, async (req, res) => {
   const { difficulty } = req.body;
   if (!difficulty) return res.status(400).json({ error: 'difficulty required (private / major / general)' });
   try {
-    const state = addBot(req.params.id, req.userId, difficulty);
+    const state = await addBot(req.params.id, req.userId, difficulty);
     res.json({ game: state });
   } catch (err) {
     res.status(400).json({ error: err.message });

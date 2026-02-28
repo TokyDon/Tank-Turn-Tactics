@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
-const db = require('../db');
+const { query } = require('../db');
 const { getAvailableBotUser, scheduleBotTurns } = require('./botAI');
 
 const PLAYER_COLORS = [
@@ -20,26 +20,28 @@ function inRange(player, tx, ty) {
   return chebyshev(player.x, player.y, tx, ty) <= player.range_val;
 }
 
-function isOccupied(gameId, x, y, excludeUserId = null) {
-  let q = db.prepare(
-    'SELECT 1 FROM game_players WHERE game_id=? AND x=? AND y=? AND is_downed=0'
-  );
+async function isOccupied(gameId, x, y, excludeUserId = null) {
   if (excludeUserId) {
-    q = db.prepare(
-      'SELECT 1 FROM game_players WHERE game_id=? AND x=? AND y=? AND is_downed=0 AND user_id!=?'
+    const { rows } = await query(
+      'SELECT 1 FROM game_players WHERE game_id=$1 AND x=$2 AND y=$3 AND is_downed=0 AND user_id!=$4',
+      [gameId, x, y, excludeUserId]
     );
-    return !!q.get(gameId, x, y, excludeUserId);
+    return rows.length > 0;
   }
-  return !!q.get(gameId, x, y);
+  const { rows } = await query(
+    'SELECT 1 FROM game_players WHERE game_id=$1 AND x=$2 AND y=$3 AND is_downed=0',
+    [gameId, x, y]
+  );
+  return rows.length > 0;
 }
 
-function randomEmptyCell(gameId, gridSize) {
-  const occupied = db.prepare(
-    'SELECT x,y FROM game_players WHERE game_id=? AND is_downed=0'
-  ).all(gameId);
-  const items = db.prepare(
-    'SELECT x,y FROM board_items WHERE game_id=? AND is_collected=0'
-  ).all(gameId);
+async function randomEmptyCell(gameId, gridSize) {
+  const { rows: occupied } = await query(
+    'SELECT x,y FROM game_players WHERE game_id=$1 AND is_downed=0', [gameId]
+  );
+  const { rows: items } = await query(
+    'SELECT x,y FROM board_items WHERE game_id=$1 AND is_collected=0', [gameId]
+  );
   const taken = new Set([...occupied, ...items].map(p => `${p.x},${p.y}`));
 
   let attempts = 0;
@@ -52,82 +54,88 @@ function randomEmptyCell(gameId, gridSize) {
   return null;
 }
 
-function addLog(gameId, turnNum, logType, message, data = {}) {
-  db.prepare(
-    'INSERT INTO game_log (id, game_id, turn_num, log_type, message, data) VALUES (?,?,?,?,?,?)'
-  ).run(uuidv4(), gameId, turnNum, logType, message, JSON.stringify(data));
+async function addLog(gameId, turnNum, logType, message, data = {}) {
+  await query(
+    'INSERT INTO game_log (id, game_id, turn_num, log_type, message, data) VALUES ($1,$2,$3,$4,$5,$6)',
+    [uuidv4(), gameId, turnNum, logType, message, JSON.stringify(data)]
+  );
 }
 
 // ─── Game Creation ──────────────────────────────────────────────────────────
 
-function createGame(name, createdBy, options = {}) {
+async function createGame(name, createdBy, options = {}) {
   const id = uuidv4();
   const gridSize = options.gridSize || 16;
   const maxPlayers = options.maxPlayers || 16;
   const shrinkEnabled = options.shrinkEnabled ? 1 : 0;
-  const passwordHash = options.password ? bcrypt.hashSync(options.password, 10) : null;
+  const passwordHash = options.password ? await bcrypt.hash(options.password, 10) : null;
 
-  db.prepare(
+  await query(
     `INSERT INTO games (id, name, grid_size, active_grid_size, max_players, shrink_enabled, created_by, password_hash)
-     VALUES (?,?,?,?,?,?,?,?)`
-  ).run(id, name, gridSize, gridSize, maxPlayers, shrinkEnabled, createdBy, passwordHash);
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [id, name, gridSize, gridSize, maxPlayers, shrinkEnabled, createdBy, passwordHash]
+  );
 
-  addLog(id, 0, 'system', `Game "${name}" created`);
+  await addLog(id, 0, 'system', `Game "${name}" created`);
 
-  // Auto-join the creator as first player (host)
-  const user = db.prepare('SELECT username FROM users WHERE id=?').get(createdBy);
+  const { rows } = await query('SELECT username FROM users WHERE id=$1', [createdBy]);
+  const user = rows[0];
   const playerId = uuidv4();
-  db.prepare(
-    `INSERT INTO game_players (id, game_id, user_id, username, color) VALUES (?,?,?,?,?)`
-  ).run(playerId, id, createdBy, user.username, PLAYER_COLORS[0]);
-  addLog(id, 0, 'join', `${user.username} created and joined the game`);
+  await query(
+    'INSERT INTO game_players (id, game_id, user_id, username, color) VALUES ($1,$2,$3,$4,$5)',
+    [playerId, id, createdBy, user.username, PLAYER_COLORS[0]]
+  );
+  await addLog(id, 0, 'join', `${user.username} created and joined the game`);
 
   return getGameState(id, createdBy);
 }
 
-function joinGame(gameId, userId, password) {
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+async function joinGame(gameId, userId, password) {
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game) throw new Error('Game not found');
   if (game.status !== 'lobby') throw new Error('Game already started');
 
-  const existing = db.prepare('SELECT 1 FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
-  if (existing) throw new Error('Already in this game');
+  const { rows: existing } = await query(
+    'SELECT 1 FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, userId]
+  );
+  if (existing[0]) throw new Error('Already in this game');
 
-  // Password check (skip if player is already a member — handled above)
   if (game.password_hash) {
     if (!password) throw new Error('PASSWORD_REQUIRED');
     if (!bcrypt.compareSync(password, game.password_hash)) throw new Error('Incorrect password');
   }
 
-  const count = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=?').get(gameId).c;
+  const { rows: countRows } = await query(
+    'SELECT COUNT(*) as c FROM game_players WHERE game_id=$1', [gameId]
+  );
+  const count = parseInt(countRows[0].c, 10);
   if (count >= game.max_players) throw new Error('Game is full');
 
-  const user = db.prepare('SELECT username FROM users WHERE id=?').get(userId);
+  const { rows: uRows } = await query('SELECT username FROM users WHERE id=$1', [userId]);
+  const user = uRows[0];
   const color = PLAYER_COLORS[count % PLAYER_COLORS.length];
   const playerId = uuidv4();
 
-  db.prepare(
-    `INSERT INTO game_players (id, game_id, user_id, username, color)
-     VALUES (?,?,?,?,?)`
-  ).run(playerId, gameId, userId, user.username, color);
-
-  addLog(gameId, game.current_turn, 'join', `${user.username} joined the game`);
+  await query(
+    'INSERT INTO game_players (id, game_id, user_id, username, color) VALUES ($1,$2,$3,$4,$5)',
+    [playerId, gameId, userId, user.username, color]
+  );
+  await addLog(gameId, game.current_turn, 'join', `${user.username} joined the game`);
   return getGameState(gameId, userId);
 }
 
-function startGame(gameId, userId) {
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+async function startGame(gameId, userId) {
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game) throw new Error('Game not found');
   if (game.created_by !== userId) throw new Error('Only the host can start the game');
   if (game.status !== 'lobby') throw new Error('Game already started');
 
-  const players = db.prepare('SELECT * FROM game_players WHERE game_id=?').all(gameId);
+  const { rows: players } = await query('SELECT * FROM game_players WHERE game_id=$1', [gameId]);
   if (players.length < 2) throw new Error('Need at least 2 players');
 
-  // Assign random starting positions
   const positions = new Set();
-  const updatePos = db.prepare('UPDATE game_players SET x=?, y=? WHERE id=?');
-
   for (const player of players) {
     let x, y, key;
     do {
@@ -136,18 +144,16 @@ function startGame(gameId, userId) {
       key = `${x},${y}`;
     } while (positions.has(key));
     positions.add(key);
-    updatePos.run(x, y, player.id);
+    await query('UPDATE game_players SET x=$1, y=$2 WHERE id=$3', [x, y, player.id]);
   }
 
-  db.prepare(
-    `UPDATE games SET status='active', current_turn=1, turn_started_at=? WHERE id=?`
-  ).run(Math.floor(Date.now() / 1000), gameId);
+  await query(
+    "UPDATE games SET status='active', current_turn=1, turn_started_at=$1 WHERE id=$2",
+    [Math.floor(Date.now() / 1000), gameId]
+  );
 
-
-  // Schedule initial bot turns
-  scheduleBotTurns(gameId);
-
-  addLog(gameId, 1, 'system', 'Battle commenced. All units deploy to the field.');
+  await scheduleBotTurns(gameId);
+  await addLog(gameId, 1, 'system', 'Battle commenced. All units deploy to the field.');
   return getGameState(gameId, userId);
 }
 
@@ -155,12 +161,14 @@ function startGame(gameId, userId) {
 
 // ─── Primary Action (phase 1 of turn) ───────────────────────────────────────
 
-function takePrimaryAction(gameId, userId, primaryAction) {
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+async function takePrimaryAction(gameId, userId, primaryAction) {
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game) throw new Error('Game not found');
   if (game.status !== 'active') throw new Error('Game is not active');
 
-  const player = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
+  const { rows: pRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
+  const player = pRows[0];
   if (!player) throw new Error('Not in this game');
   if (player.is_downed) throw new Error('You are downed — you cannot take actions');
   if (player.has_taken_primary) throw new Error('You already submitted your primary action this turn');
@@ -172,17 +180,17 @@ function takePrimaryAction(gameId, userId, primaryAction) {
   if (pa.type === 'move') {
     const { x, y } = pa;
     if (chebyshev(player.x, player.y, x, y) !== 1) throw new Error('Can only move to adjacent square');
-    if (isOccupied(gameId, x, y, userId)) throw new Error('Square is occupied');
+    if (await isOccupied(gameId, x, y, userId)) throw new Error('Square is occupied');
     if (x < 0 || y < 0 || x >= game.active_grid_size || y >= game.active_grid_size)
       throw new Error('Out of bounds');
     apCost = 1;
-    db.prepare('UPDATE game_players SET x=?, y=? WHERE game_id=? AND user_id=?')
-      .run(x, y, gameId, userId);
+    await query('UPDATE game_players SET x=$1, y=$2 WHERE game_id=$3 AND user_id=$4', [x, y, gameId, userId]);
     logs.push({ type: 'action', msg: `${player.username} moved to [${x},${y}]` });
-    collectItems(gameId, userId, player, x, y, logs);
+    await collectItems(gameId, userId, player, x, y, logs);
 
   } else if (pa.type === 'attack') {
-    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, pa.targetUserId);
+    const { rows: tRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, pa.targetUserId]);
+    const target = tRows[0];
     if (!target) throw new Error('Target not found');
     if (target.is_downed) throw new Error('Target is already downed');
     if (!inRange(player, target.x, target.y)) throw new Error('Target not in range');
@@ -191,18 +199,14 @@ function takePrimaryAction(gameId, userId, primaryAction) {
     const newHearts = (target.hearts - 1);
     if (newHearts <= 0 && target.extra_hearts <= 0) {
       const targetTotalAp = target.ap;
-      db.prepare('UPDATE game_players SET hearts=0, extra_hearts=0, is_downed=1, ap=0 WHERE game_id=? AND user_id=?')
-        .run(gameId, target.user_id);
-      db.prepare('UPDATE game_players SET ap=ap+? WHERE game_id=? AND user_id=?')
-        .run(targetTotalAp, gameId, userId);
+      await query('UPDATE game_players SET hearts=0, extra_hearts=0, is_downed=1, ap=0 WHERE game_id=$1 AND user_id=$2', [gameId, target.user_id]);
+      await query('UPDATE game_players SET ap=ap+$1 WHERE game_id=$2 AND user_id=$3', [targetTotalAp, gameId, userId]);
       logs.push({ type: 'attack', msg: `${player.username} eliminated ${target.username}! (+${targetTotalAp} AP)`, target: target.username });
     } else if (newHearts <= 0 && target.extra_hearts > 0) {
-      db.prepare('UPDATE game_players SET hearts=3, extra_hearts=extra_hearts-1 WHERE game_id=? AND user_id=?')
-        .run(gameId, target.user_id);
+      await query('UPDATE game_players SET hearts=3, extra_hearts=extra_hearts-1 WHERE game_id=$1 AND user_id=$2', [gameId, target.user_id]);
       logs.push({ type: 'attack', msg: `${player.username} attacked ${target.username} (−1 ♥)`, target: target.username });
     } else {
-      db.prepare('UPDATE game_players SET hearts=? WHERE game_id=? AND user_id=?')
-        .run(newHearts, gameId, target.user_id);
+      await query('UPDATE game_players SET hearts=$1 WHERE game_id=$2 AND user_id=$3', [newHearts, gameId, target.user_id]);
       logs.push({ type: 'attack', msg: `${player.username} attacked ${target.username} (−1 ♥)`, target: target.username });
     }
 
@@ -210,16 +214,16 @@ function takePrimaryAction(gameId, userId, primaryAction) {
     apCost = 3;
     if (player.ap < 3) throw new Error('Need 3 AP');
     if (player.hearts >= 3) {
-      db.prepare('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+      await query('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
     } else {
-      db.prepare('UPDATE game_players SET hearts=hearts+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+      await query('UPDATE game_players SET hearts=hearts+1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
     }
     logs.push({ type: 'action', msg: `${player.username} reinforced their armor (+1 ♥)` });
 
   } else if (pa.type === 'upgradeRange') {
     apCost = 3;
     if (player.ap < 3) throw new Error('Need 3 AP');
-    db.prepare('UPDATE game_players SET range_val=range_val+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+    await query('UPDATE game_players SET range_val=range_val+1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
     logs.push({ type: 'action', msg: `${player.username} upgraded targeting range` });
 
   } else if (pa.type === 'idle') {
@@ -230,29 +234,31 @@ function takePrimaryAction(gameId, userId, primaryAction) {
   }
 
   if (player.ap < apCost) throw new Error(`Need ${apCost} AP`);
-  db.prepare('UPDATE game_players SET ap=ap-? WHERE game_id=? AND user_id=?').run(apCost, gameId, userId);
-
-  db.prepare('UPDATE game_players SET has_taken_primary=1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+  await query('UPDATE game_players SET ap=ap-$1 WHERE game_id=$2 AND user_id=$3', [apCost, gameId, userId]);
+  await query('UPDATE game_players SET has_taken_primary=1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
 
   for (const l of logs) {
-    addLog(gameId, game.current_turn, l.type, l.msg, l);
+    await addLog(gameId, game.current_turn, l.type, l.msg, l);
   }
 
-  db.prepare(
-    'INSERT INTO turn_actions (id, game_id, turn_num, player_id, action_type, action_data) VALUES (?,?,?,?,?,?)'
-  ).run(uuidv4(), gameId, game.current_turn, player.id, pa.type, JSON.stringify({ pa }));
+  await query(
+    'INSERT INTO turn_actions (id, game_id, turn_num, player_id, action_type, action_data) VALUES ($1,$2,$3,$4,$5,$6)',
+    [uuidv4(), gameId, game.current_turn, player.id, pa.type, JSON.stringify({ pa })]
+  );
 
   return getGameState(gameId, userId);
 }
 
 // ─── Secondary Action (phase 2 of turn — optional) ──────────────────────────
 
-function takeSecondaryAction(gameId, userId, secondaryAction) {
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+async function takeSecondaryAction(gameId, userId, secondaryAction) {
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game) throw new Error('Game not found');
   if (game.status !== 'active') throw new Error('Game is not active');
 
-  const player = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
+  const { rows: pRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
+  const player = pRows[0];
   if (!player) throw new Error('Not in this game');
   if (player.is_downed) throw new Error('You are downed — you cannot take actions');
   if (player.has_taken_turn) throw new Error('You already completed your turn');
@@ -261,50 +267,53 @@ function takeSecondaryAction(gameId, userId, secondaryAction) {
   const sa = secondaryAction || { type: 'idle' };
 
   if (sa.type === 'giveHeart') {
-    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, sa.targetUserId);
+    const { rows: tRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, sa.targetUserId]);
+    const target = tRows[0];
     if (!target) throw new Error('Target not found');
     if (!inRange(player, target.x, target.y)) throw new Error('Target not in range');
 
     if (target.is_downed) {
       if (!target.can_revive) throw new Error('This commander cannot be revived');
-      db.prepare('UPDATE game_players SET is_downed=0, hearts=1, ap=1 WHERE game_id=? AND user_id=?')
-        .run(gameId, target.user_id);
+      await query('UPDATE game_players SET is_downed=0, hearts=1, ap=1 WHERE game_id=$1 AND user_id=$2', [gameId, target.user_id]);
       logs.push({ type: 'revive', msg: `${player.username} revived ${target.username} from the dead!`, target: target.username });
     } else {
       if (player.hearts <= 0) throw new Error('No hearts to give');
       const fromNew = player.hearts - 1;
-      db.prepare('UPDATE game_players SET hearts=? WHERE game_id=? AND user_id=?').run(fromNew < 0 ? 0 : fromNew, gameId, userId);
+      await query('UPDATE game_players SET hearts=$1 WHERE game_id=$2 AND user_id=$3', [fromNew < 0 ? 0 : fromNew, gameId, userId]);
       if (target.hearts >= 3) {
-        db.prepare('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=? AND user_id=?').run(gameId, target.user_id);
+        await query('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=$1 AND user_id=$2', [gameId, target.user_id]);
       } else {
-        db.prepare('UPDATE game_players SET hearts=hearts+1 WHERE game_id=? AND user_id=?').run(gameId, target.user_id);
+        await query('UPDATE game_players SET hearts=hearts+1 WHERE game_id=$1 AND user_id=$2', [gameId, target.user_id]);
       }
       logs.push({ type: 'gift', msg: `${player.username} gave a ♥ to ${target.username}`, target: target.username });
     }
 
   } else if (sa.type === 'giveAP') {
     const amount = Math.min(3, Math.max(1, sa.amount || 1));
-    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, sa.targetUserId);
+    const { rows: tRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, sa.targetUserId]);
+    const target = tRows[0];
     if (!target) throw new Error('Target not found');
     if (!inRange(player, target.x, target.y)) throw new Error('Target not in range');
     if (player.ap < amount) throw new Error(`Need ${amount} AP to give`);
 
-    db.prepare('UPDATE game_players SET ap=ap-? WHERE game_id=? AND user_id=?').run(amount, gameId, userId);
-    db.prepare('UPDATE game_players SET ap=ap+? WHERE game_id=? AND user_id=?').run(amount, gameId, target.user_id);
+    await query('UPDATE game_players SET ap=ap-$1 WHERE game_id=$2 AND user_id=$3', [amount, gameId, userId]);
+    await query('UPDATE game_players SET ap=ap+$1 WHERE game_id=$2 AND user_id=$3', [amount, gameId, target.user_id]);
     logs.push({ type: 'gift', msg: `${player.username} transferred ${amount} AP to ${target.username}`, target: target.username });
   }
   // sa.type === 'idle': no action, just end the turn
 
-  db.prepare('UPDATE game_players SET has_taken_turn=1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+  await query('UPDATE game_players SET has_taken_turn=1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
 
   for (const l of logs) {
-    addLog(gameId, game.current_turn, l.type, l.msg, l);
+    await addLog(gameId, game.current_turn, l.type, l.msg, l);
   }
 
-  const activePlayers = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=? AND is_downed=0').get(gameId).c;
-  const turnsTaken = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=? AND is_downed=0 AND has_taken_turn=1').get(gameId).c;
+  const { rows: acRows } = await query('SELECT COUNT(*) as c FROM game_players WHERE game_id=$1 AND is_downed=0', [gameId]);
+  const activePlayers = parseInt(acRows[0].c, 10);
+  const { rows: ttRows } = await query('SELECT COUNT(*) as c FROM game_players WHERE game_id=$1 AND is_downed=0 AND has_taken_turn=1', [gameId]);
+  const turnsTaken = parseInt(ttRows[0].c, 10);
   if (turnsTaken >= activePlayers) {
-    endTurn(gameId);
+    await endTurn(gameId);
   }
 
   return getGameState(gameId, userId);
@@ -312,12 +321,14 @@ function takeSecondaryAction(gameId, userId, secondaryAction) {
 
 // ─── Combined action (used by bots — processes both phases atomically) ───────
 
-function takeAction(gameId, userId, primaryAction, secondaryAction) {
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+async function takeAction(gameId, userId, primaryAction, secondaryAction) {
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game) throw new Error('Game not found');
   if (game.status !== 'active') throw new Error('Game is not active');
 
-  const player = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
+  const { rows: pRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
+  const player = pRows[0];
   if (!player) throw new Error('Not in this game');
   if (player.is_downed) throw new Error('You are downed — you cannot take actions');
   if (player.has_taken_turn) throw new Error('You already acted this turn');
@@ -331,17 +342,17 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
   if (pa.type === 'move') {
     const { x, y } = pa;
     if (chebyshev(player.x, player.y, x, y) !== 1) throw new Error('Can only move to adjacent square');
-    if (isOccupied(gameId, x, y, userId)) throw new Error('Square is occupied');
+    if (await isOccupied(gameId, x, y, userId)) throw new Error('Square is occupied');
     if (x < 0 || y < 0 || x >= game.active_grid_size || y >= game.active_grid_size)
       throw new Error('Out of bounds');
     apCost = 1;
-    db.prepare('UPDATE game_players SET x=?, y=? WHERE game_id=? AND user_id=?')
-      .run(x, y, gameId, userId);
+    await query('UPDATE game_players SET x=$1, y=$2 WHERE game_id=$3 AND user_id=$4', [x, y, gameId, userId]);
     logs.push({ type: 'action', msg: `${player.username} moved to [${x},${y}]` });
-    collectItems(gameId, userId, player, x, y, logs);
+    await collectItems(gameId, userId, player, x, y, logs);
 
   } else if (pa.type === 'attack') {
-    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, pa.targetUserId);
+    const { rows: tRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, pa.targetUserId]);
+    const target = tRows[0];
     if (!target) throw new Error('Target not found');
     if (target.is_downed) throw new Error('Target is already downed');
     if (!inRange(player, target.x, target.y)) throw new Error('Target not in range');
@@ -350,18 +361,14 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
     const newHearts = (target.hearts - 1);
     if (newHearts <= 0 && target.extra_hearts <= 0) {
       const targetTotalAp = target.ap;
-      db.prepare('UPDATE game_players SET hearts=0, extra_hearts=0, is_downed=1, ap=0 WHERE game_id=? AND user_id=?')
-        .run(gameId, target.user_id);
-      db.prepare('UPDATE game_players SET ap=ap+? WHERE game_id=? AND user_id=?')
-        .run(targetTotalAp, gameId, userId);
+      await query('UPDATE game_players SET hearts=0, extra_hearts=0, is_downed=1, ap=0 WHERE game_id=$1 AND user_id=$2', [gameId, target.user_id]);
+      await query('UPDATE game_players SET ap=ap+$1 WHERE game_id=$2 AND user_id=$3', [targetTotalAp, gameId, userId]);
       logs.push({ type: 'attack', msg: `${player.username} eliminated ${target.username}! (+${targetTotalAp} AP)`, target: target.username });
     } else if (newHearts <= 0 && target.extra_hearts > 0) {
-      db.prepare('UPDATE game_players SET hearts=3, extra_hearts=extra_hearts-1 WHERE game_id=? AND user_id=?')
-        .run(gameId, target.user_id);
+      await query('UPDATE game_players SET hearts=3, extra_hearts=extra_hearts-1 WHERE game_id=$1 AND user_id=$2', [gameId, target.user_id]);
       logs.push({ type: 'attack', msg: `${player.username} attacked ${target.username} (−1 ♥)`, target: target.username });
     } else {
-      db.prepare('UPDATE game_players SET hearts=? WHERE game_id=? AND user_id=?')
-        .run(newHearts, gameId, target.user_id);
+      await query('UPDATE game_players SET hearts=$1 WHERE game_id=$2 AND user_id=$3', [newHearts, gameId, target.user_id]);
       logs.push({ type: 'attack', msg: `${player.username} attacked ${target.username} (−1 ♥)`, target: target.username });
     }
 
@@ -369,16 +376,16 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
     apCost = 3;
     if (player.ap < 3) throw new Error('Need 3 AP');
     if (player.hearts >= 3) {
-      db.prepare('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+      await query('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
     } else {
-      db.prepare('UPDATE game_players SET hearts=hearts+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+      await query('UPDATE game_players SET hearts=hearts+1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
     }
     logs.push({ type: 'action', msg: `${player.username} reinforced their armor (+1 ♥)` });
 
   } else if (pa.type === 'upgradeRange') {
     apCost = 3;
     if (player.ap < 3) throw new Error('Need 3 AP');
-    db.prepare('UPDATE game_players SET range_val=range_val+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+    await query('UPDATE game_players SET range_val=range_val+1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
     logs.push({ type: 'action', msg: `${player.username} upgraded targeting range` });
 
   } else if (pa.type === 'idle') {
@@ -389,59 +396,70 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
   }
 
   if (player.ap < apCost) throw new Error(`Need ${apCost} AP`);
-  db.prepare('UPDATE game_players SET ap=ap-? WHERE game_id=? AND user_id=?').run(apCost, gameId, userId);
+  await query('UPDATE game_players SET ap=ap-$1 WHERE game_id=$2 AND user_id=$3', [apCost, gameId, userId]);
 
   // ── Secondary ──
   const sa = secondaryAction || { type: 'idle' };
-  const freshPlayer = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
+  const { rows: fpRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
+  const freshPlayer = fpRows[0];
 
   if (sa.type === 'giveHeart') {
-    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, sa.targetUserId);
+    const { rows: tRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, sa.targetUserId]);
+    const target = tRows[0];
     if (!target) throw new Error('Target not found');
     if (!inRange(freshPlayer, target.x, target.y)) throw new Error('Target not in range');
 
     if (target.is_downed) {
       if (!target.can_revive) throw new Error('This commander cannot be revived');
-      db.prepare('UPDATE game_players SET is_downed=0, hearts=1, ap=1 WHERE game_id=? AND user_id=?')
-        .run(gameId, target.user_id);
+      await query('UPDATE game_players SET is_downed=0, hearts=1, ap=1 WHERE game_id=$1 AND user_id=$2', [gameId, target.user_id]);
       logs.push({ type: 'revive', msg: `${player.username} revived ${target.username} from the dead!`, target: target.username });
     } else {
       if (freshPlayer.hearts <= 0) throw new Error('No hearts to give');
       const fromNew = freshPlayer.hearts - 1;
-      db.prepare('UPDATE game_players SET hearts=? WHERE game_id=? AND user_id=?').run(fromNew < 0 ? 0 : fromNew, gameId, userId);
+      await query('UPDATE game_players SET hearts=$1 WHERE game_id=$2 AND user_id=$3', [fromNew < 0 ? 0 : fromNew, gameId, userId]);
       if (target.hearts >= 3) {
-        db.prepare('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=? AND user_id=?').run(gameId, target.user_id);
+        await query('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=$1 AND user_id=$2', [gameId, target.user_id]);
       } else {
-        db.prepare('UPDATE game_players SET hearts=hearts+1 WHERE game_id=? AND user_id=?').run(gameId, target.user_id);
+        await query('UPDATE game_players SET hearts=hearts+1 WHERE game_id=$1 AND user_id=$2', [gameId, target.user_id]);
       }
       logs.push({ type: 'gift', msg: `${player.username} gave a ♥ to ${target.username}`, target: target.username });
     }
 
   } else if (sa.type === 'giveAP') {
     const amount = Math.min(3, Math.max(1, sa.amount || 1));
-    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, sa.targetUserId);
+    const { rows: tRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, sa.targetUserId]);
+    const target = tRows[0];
     if (!target) throw new Error('Target not found');
     if (!inRange(freshPlayer, target.x, target.y)) throw new Error('Target not in range');
     if (freshPlayer.ap < amount) throw new Error(`Need ${amount} AP to give`);
 
-    db.prepare('UPDATE game_players SET ap=ap-? WHERE game_id=? AND user_id=?').run(amount, gameId, userId);
-    db.prepare('UPDATE game_players SET ap=ap+? WHERE game_id=? AND user_id=?').run(amount, gameId, target.user_id);
+    await query('UPDATE game_players SET ap=ap-$1 WHERE game_id=$2 AND user_id=$3', [amount, gameId, userId]);
+    await query('UPDATE game_players SET ap=ap+$1 WHERE game_id=$2 AND user_id=$3', [amount, gameId, target.user_id]);
     logs.push({ type: 'gift', msg: `${player.username} transferred ${amount} AP to ${target.username}`, target: target.username });
   }
 
   // Mark full turn complete (both phases)
-  db.prepare('UPDATE game_players SET has_taken_primary=1, has_taken_turn=1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+  await query('UPDATE game_players SET has_taken_primary=1, has_taken_turn=1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
 
   for (const l of logs) {
-    addLog(gameId, game.current_turn, l.type, l.msg, l);
+    await addLog(gameId, game.current_turn, l.type, l.msg, l);
   }
 
-  db.prepare(
-    'INSERT INTO turn_actions (id, game_id, turn_num, player_id, action_type, action_data) VALUES (?,?,?,?,?,?)'
-  ).run(uuidv4(), gameId, game.current_turn, player.id, pa.type, JSON.stringify({ pa, sa }));
+  await query(
+    'INSERT INTO turn_actions (id, game_id, turn_num, player_id, action_type, action_data) VALUES ($1,$2,$3,$4,$5,$6)',
+    [uuidv4(), gameId, game.current_turn, player.id, pa.type, JSON.stringify({ pa, sa })]
+  );
 
-  const activePlayers = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=? AND is_downed=0').get(gameId).c;
-  const turnsTaken = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=? AND is_downed=0 AND has_taken_turn=1').get(gameId).c;
+  const { rows: acRows } = await query('SELECT COUNT(*) as c FROM game_players WHERE game_id=$1 AND is_downed=0', [gameId]);
+  const activePlayers = parseInt(acRows[0].c, 10);
+  const { rows: ttRows } = await query('SELECT COUNT(*) as c FROM game_players WHERE game_id=$1 AND is_downed=0 AND has_taken_turn=1', [gameId]);
+  const turnsTaken = parseInt(ttRows[0].c, 10);
+  if (turnsTaken >= activePlayers) {
+    await endTurn(gameId);
+  }
+
+  return getGameState(gameId, userId);
+}
   if (turnsTaken >= activePlayers) {
     endTurn(gameId);
   }
@@ -451,295 +469,316 @@ function takeAction(gameId, userId, primaryAction, secondaryAction) {
 
 // ─── Collect items when moving ───────────────────────────────────────────────
 
-function collectItems(gameId, userId, player, x, y, logs) {
-  const item = db.prepare(
-    'SELECT * FROM board_items WHERE game_id=? AND x=? AND y=? AND is_collected=0'
-  ).get(gameId, x, y);
-
+async function collectItems(gameId, userId, player, x, y, logs) {
+  const { rows: iRows } = await query(
+    'SELECT * FROM board_items WHERE game_id=$1 AND x=$2 AND y=$3 AND is_collected=0',
+    [gameId, x, y]
+  );
+  const item = iRows[0];
   if (!item) return;
 
-  db.prepare('UPDATE board_items SET is_collected=1, collected_by=?, collected_at=? WHERE id=?')
-    .run(userId, Math.floor(Date.now() / 1000), item.id);
+  await query('UPDATE board_items SET is_collected=1, collected_by=$1, collected_at=$2 WHERE id=$3',
+    [userId, Math.floor(Date.now() / 1000), item.id]);
 
   if (item.item_type === 'heart') {
-    const p = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, userId);
+    const { rows: pRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
+    const p = pRows[0];
     if (p.hearts >= 3) {
-      db.prepare('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+      await query('UPDATE game_players SET extra_hearts=extra_hearts+1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
     } else {
-      db.prepare('UPDATE game_players SET hearts=hearts+1 WHERE game_id=? AND user_id=?').run(gameId, userId);
+      await query('UPDATE game_players SET hearts=hearts+1 WHERE game_id=$1 AND user_id=$2', [gameId, userId]);
     }
     logs.push({ type: 'loot', msg: `${player.username} picked up a field heart (+1 ♥)` });
   } else if (item.item_type === 'loot') {
-    db.prepare('UPDATE game_players SET ap=ap+? WHERE game_id=? AND user_id=?').run(item.value, gameId, userId);
+    await query('UPDATE game_players SET ap=ap+$1 WHERE game_id=$2 AND user_id=$3', [item.value, gameId, userId]);
     logs.push({ type: 'loot', msg: `${player.username} secured a supply drop (+${item.value} AP)` });
   }
 }
 
 // ─── End Turn ────────────────────────────────────────────────────────────────
 
-function endTurn(gameId) {
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+async function endTurn(gameId) {
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game || game.status !== 'active') return;
 
   // Auto-complete turns for players who submitted primary but ran out of time for secondary (no penalty)
-  db.prepare(
-    'UPDATE game_players SET has_taken_turn=1 WHERE game_id=? AND is_downed=0 AND has_taken_primary=1 AND has_taken_turn=0'
-  ).run(gameId);
+  await query(
+    'UPDATE game_players SET has_taken_turn=1 WHERE game_id=$1 AND is_downed=0 AND has_taken_primary=1 AND has_taken_turn=0',
+    [gameId]
+  );
 
   // Penalise players who submitted no primary at all
-  const inactive = db.prepare(
-    'SELECT * FROM game_players WHERE game_id=? AND is_downed=0 AND has_taken_turn=0'
-  ).all(gameId);
+  const { rows: inactive } = await query(
+    'SELECT * FROM game_players WHERE game_id=$1 AND is_downed=0 AND has_taken_turn=0',
+    [gameId]
+  );
 
   for (const p of inactive) {
     const newHearts = p.hearts - 1;
     if (newHearts <= 0 && p.extra_hearts <= 0) {
       // Downed by inactivity — scatter their AP
       const ap = p.ap;
-      db.prepare('UPDATE game_players SET hearts=0, is_downed=1, ap=0 WHERE game_id=? AND user_id=?')
-        .run(gameId, p.user_id);
+      await query('UPDATE game_players SET hearts=0, is_downed=1, ap=0 WHERE game_id=$1 AND user_id=$2', [gameId, p.user_id]);
       if (ap > 0) {
-        const pos = randomEmptyCell(gameId, game.active_grid_size);
+        const pos = await randomEmptyCell(gameId, game.active_grid_size);
         if (pos) {
-          db.prepare(
-            'INSERT INTO board_items (id, game_id, item_type, x, y, value) VALUES (?,?,?,?,?,?)'
-          ).run(uuidv4(), gameId, 'loot', pos.x, pos.y, ap);
+          await query(
+            'INSERT INTO board_items (id, game_id, item_type, x, y, value) VALUES ($1,$2,$3,$4,$5,$6)',
+            [uuidv4(), gameId, 'loot', pos.x, pos.y, ap]
+          );
         }
       }
-      addLog(gameId, game.current_turn, 'system', `${p.username} was eliminated for missing their turn`);
+      await addLog(gameId, game.current_turn, 'system', `${p.username} was eliminated for missing their turn`);
     } else if (newHearts <= 0 && p.extra_hearts > 0) {
-      db.prepare('UPDATE game_players SET hearts=3, extra_hearts=extra_hearts-1 WHERE game_id=? AND user_id=?')
-        .run(gameId, p.user_id);
-      addLog(gameId, game.current_turn, 'system', `${p.username} missed their turn (−1 ♥)`);
+      await query('UPDATE game_players SET hearts=3, extra_hearts=extra_hearts-1 WHERE game_id=$1 AND user_id=$2', [gameId, p.user_id]);
+      await addLog(gameId, game.current_turn, 'system', `${p.username} missed their turn (−1 ♥)`);
     } else {
-      db.prepare('UPDATE game_players SET hearts=? WHERE game_id=? AND user_id=?')
-        .run(newHearts, gameId, p.user_id);
-      addLog(gameId, game.current_turn, 'system', `${p.username} missed their turn (−1 ♥)`);
+      await query('UPDATE game_players SET hearts=$1 WHERE game_id=$2 AND user_id=$3', [newHearts, gameId, p.user_id]);
+      await addLog(gameId, game.current_turn, 'system', `${p.username} missed their turn (−1 ♥)`);
     }
   }
 
   // Process jury votes for this turn
-  processJuryVotes(gameId, game.current_turn);
+  await processJuryVotes(gameId, game.current_turn);
 
   // Grid shrink check
   if (game.shrink_enabled) {
     const newTurnsSince = game.turns_since_shrink + 1;
     if (newTurnsSince >= 3) {
-      shrinkGrid(gameId, game);
-      db.prepare('UPDATE games SET turns_since_shrink=0 WHERE id=?').run(gameId);
+      await shrinkGrid(gameId, game);
+      await query('UPDATE games SET turns_since_shrink=0 WHERE id=$1', [gameId]);
     } else {
-      db.prepare('UPDATE games SET turns_since_shrink=? WHERE id=?').run(newTurnsSince, gameId);
+      await query('UPDATE games SET turns_since_shrink=$1 WHERE id=$2', [newTurnsSince, gameId]);
     }
   }
 
   const newTurn = game.current_turn + 1;
-  db.prepare(
-    'UPDATE games SET current_turn=?, turn_started_at=? WHERE id=?'
-  ).run(newTurn, Math.floor(Date.now() / 1000), gameId);
+  await query(
+    'UPDATE games SET current_turn=$1, turn_started_at=$2 WHERE id=$3',
+    [newTurn, Math.floor(Date.now() / 1000), gameId]
+  );
 
   // Reset turn flags (both phases)
-  db.prepare('UPDATE game_players SET has_taken_turn=0, has_taken_primary=0, is_haunted=0 WHERE game_id=? AND is_downed=0').run(gameId);
+  await query('UPDATE game_players SET has_taken_turn=0, has_taken_primary=0, is_haunted=0 WHERE game_id=$1 AND is_downed=0', [gameId]);
 
-  addLog(gameId, newTurn, 'system', `Turn ${newTurn} begins`);
+  await addLog(gameId, newTurn, 'system', `Turn ${newTurn} begins`);
 
   // Schedule new timing for any bot players
-  scheduleBotTurns(gameId);
+  await scheduleBotTurns(gameId);
 
   // Check game end conditions
-  checkGameEnd(gameId);
+  await checkGameEnd(gameId);
 }
 
 // ─── Jury Votes ──────────────────────────────────────────────────────────────
 
-function submitJuryVote(gameId, voterId, targetId, voteType) {
+async function submitJuryVote(gameId, voterId, targetId, voteType) {
   const VALID_VOTE_TYPES = ['haunting', 'intercession'];
   if (!VALID_VOTE_TYPES.includes(voteType)) throw new Error('Invalid vote type');
 
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game || game.status !== 'active') throw new Error('Game not active');
 
-  const voter = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, voterId);
+  const { rows: vRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, voterId]);
+  const voter = vRows[0];
   if (!voter) throw new Error('Not in this game');
   if (!voter.is_downed) throw new Error('Only downed players can vote');
 
-  const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, targetId);
+  const { rows: tRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, targetId]);
+  const target = tRows[0];
   if (!target) throw new Error('Target not found');
-  if (voteType === 'intercession' && target.is_downed) {
-    // Can vote for anyone for intercession? Rules say "any player" - I'll allow downed too
-  }
 
   // Upsert vote (one vote per voter per type per turn)
-  const existing = db.prepare(
-    'SELECT id FROM jury_votes WHERE game_id=? AND turn_num=? AND voter_id=? AND vote_type=?'
-  ).get(gameId, game.current_turn, voterId, voteType);
+  const { rows: eRows } = await query(
+    'SELECT id FROM jury_votes WHERE game_id=$1 AND turn_num=$2 AND voter_id=$3 AND vote_type=$4',
+    [gameId, game.current_turn, voterId, voteType]
+  );
+  const existing = eRows[0];
 
   if (existing) {
-    db.prepare('UPDATE jury_votes SET target_id=?, created_at=? WHERE id=?')
-      .run(targetId, Math.floor(Date.now() / 1000), existing.id);
+    await query('UPDATE jury_votes SET target_id=$1, created_at=$2 WHERE id=$3',
+      [targetId, Math.floor(Date.now() / 1000), existing.id]);
   } else {
-    db.prepare(
-      'INSERT INTO jury_votes (id, game_id, turn_num, voter_id, target_id, vote_type) VALUES (?,?,?,?,?,?)'
-    ).run(uuidv4(), gameId, game.current_turn, voterId, targetId, voteType);
+    await query(
+      'INSERT INTO jury_votes (id, game_id, turn_num, voter_id, target_id, vote_type) VALUES ($1,$2,$3,$4,$5,$6)',
+      [uuidv4(), gameId, game.current_turn, voterId, targetId, voteType]
+    );
   }
 
   return { success: true };
 }
 
-function processJuryVotes(gameId, turnNum) {
+async function processJuryVotes(gameId, turnNum) {
   // Haunting: most votes = haunted next turn
-  const hauntVotes = db.prepare(
+  const { rows: hauntRows } = await query(
     `SELECT target_id, COUNT(*) as votes FROM jury_votes 
-     WHERE game_id=? AND turn_num=? AND vote_type='haunting'
-     GROUP BY target_id ORDER BY votes DESC LIMIT 1`
-  ).get(gameId, turnNum);
+     WHERE game_id=$1 AND turn_num=$2 AND vote_type='haunting'
+     GROUP BY target_id ORDER BY votes DESC LIMIT 1`,
+    [gameId, turnNum]
+  );
+  const hauntVotes = hauntRows[0];
 
   if (hauntVotes && hauntVotes.votes > 0) {
-    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, hauntVotes.target_id);
+    const { rows: tRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, hauntVotes.target_id]);
+    const target = tRows[0];
     if (target) {
-      db.prepare('UPDATE game_players SET is_haunted=1 WHERE game_id=? AND user_id=?')
-        .run(gameId, hauntVotes.target_id);
-      addLog(gameId, turnNum, 'jury', `The jury haunts ${target.username} — no AP this cycle`);
+      await query('UPDATE game_players SET is_haunted=1 WHERE game_id=$1 AND user_id=$2', [gameId, hauntVotes.target_id]);
+      await addLog(gameId, turnNum, 'jury', `The jury haunts ${target.username} — no AP this cycle`);
     }
   }
 
   // Intercession: any player with 3+ votes gets 3 AP
-  const intercession = db.prepare(
+  const { rows: intercession } = await query(
     `SELECT target_id, COUNT(*) as votes FROM jury_votes
-     WHERE game_id=? AND turn_num=? AND vote_type='intercession'
-     GROUP BY target_id HAVING votes >= 3`
-  ).all(gameId, turnNum);
+     WHERE game_id=$1 AND turn_num=$2 AND vote_type='intercession'
+     GROUP BY target_id HAVING COUNT(*) >= 3`,
+    [gameId, turnNum]
+  );
 
   for (const iv of intercession) {
-    const target = db.prepare('SELECT * FROM game_players WHERE game_id=? AND user_id=?').get(gameId, iv.target_id);
+    const { rows: tRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2', [gameId, iv.target_id]);
+    const target = tRows[0];
     if (target && !target.is_downed) {
-      db.prepare('UPDATE game_players SET ap=ap+3 WHERE game_id=? AND user_id=?').run(gameId, iv.target_id);
-      addLog(gameId, turnNum, 'jury', `The jury intercedes for ${target.username} (+3 AP)`);
+      await query('UPDATE game_players SET ap=ap+3 WHERE game_id=$1 AND user_id=$2', [gameId, iv.target_id]);
+      await addLog(gameId, turnNum, 'jury', `The jury intercedes for ${target.username} (+3 AP)`);
     }
   }
 }
 
 // ─── Daily AP ────────────────────────────────────────────────────────────────
 
-function giveWeekdayAP(gameId) {
-  const game = db.prepare('SELECT * FROM games WHERE id=? AND status=\'active\'').get(gameId);
+async function giveWeekdayAP(gameId) {
+  const { rows: gRows } = await query("SELECT * FROM games WHERE id=$1 AND status='active'", [gameId]);
+  const game = gRows[0];
   if (!game) return;
 
-  const players = db.prepare(
-    'SELECT * FROM game_players WHERE game_id=? AND is_downed=0 AND is_haunted=0'
-  ).all(gameId);
+  const { rows: players } = await query(
+    'SELECT * FROM game_players WHERE game_id=$1 AND is_downed=0 AND is_haunted=0',
+    [gameId]
+  );
 
   for (const p of players) {
-    db.prepare('UPDATE game_players SET ap=ap+1 WHERE game_id=? AND user_id=?')
-      .run(gameId, p.user_id);
+    await query('UPDATE game_players SET ap=ap+1 WHERE game_id=$1 AND user_id=$2', [gameId, p.user_id]);
   }
 
-  addLog(gameId, game.current_turn, 'system', 'Daily AP distributed to all active units');
+  await addLog(gameId, game.current_turn, 'system', 'Daily AP distributed to all active units');
   return players.length;
 }
 
-function giveWeekdayAPToAll() {
-  const activeGames = db.prepare('SELECT id FROM games WHERE status=\'active\'').all();
-  for (const g of activeGames) giveWeekdayAP(g.id);
+async function giveWeekdayAPToAll() {
+  const { rows: activeGames } = await query("SELECT id FROM games WHERE status='active'");
+  for (const g of activeGames) await giveWeekdayAP(g.id);
 }
 
 // ─── Spawns ──────────────────────────────────────────────────────────────────
 
-function spawnItem(gameId, itemType, value = 1) {
-  const game = db.prepare('SELECT * FROM games WHERE id=? AND status=\'active\'').get(gameId);
+async function spawnItem(gameId, itemType, value = 1) {
+  const { rows: gRows } = await query("SELECT * FROM games WHERE id=$1 AND status='active'", [gameId]);
+  const game = gRows[0];
   if (!game) return null;
 
-  const pos = randomEmptyCell(gameId, game.active_grid_size);
+  const pos = await randomEmptyCell(gameId, game.active_grid_size);
   if (!pos) return null;
 
   const id = uuidv4();
-  db.prepare(
-    'INSERT INTO board_items (id, game_id, item_type, x, y, value) VALUES (?,?,?,?,?,?)'
-  ).run(id, gameId, itemType, pos.x, pos.y, value);
+  await query(
+    'INSERT INTO board_items (id, game_id, item_type, x, y, value) VALUES ($1,$2,$3,$4,$5,$6)',
+    [id, gameId, itemType, pos.x, pos.y, value]
+  );
 
   const label = itemType === 'heart' ? '♥ field heart' : `supply drop (${value} AP)`;
-  addLog(gameId, game.current_turn, 'spawn', `A ${label} appeared at [${pos.x},${pos.y}]`);
+  await addLog(gameId, game.current_turn, 'spawn', `A ${label} appeared at [${pos.x},${pos.y}]`);
   return { id, x: pos.x, y: pos.y, item_type: itemType, value };
 }
 
-function spawnDailyItemsForAll() {
-  const games = db.prepare('SELECT id FROM games WHERE status=\'active\'').all();
+async function spawnDailyItemsForAll() {
+  const { rows: games } = await query("SELECT id FROM games WHERE status='active'");
   for (const g of games) {
-    spawnItem(g.id, 'heart', 1);
-    if (Math.random() < 0.5) spawnItem(g.id, 'loot', 3);
+    await spawnItem(g.id, 'heart', 1);
+    if (Math.random() < 0.5) await spawnItem(g.id, 'loot', 3);
   }
 }
 
 // ─── Grid Shrink ─────────────────────────────────────────────────────────────
 
-function shrinkGrid(gameId, game) {
+async function shrinkGrid(gameId, game) {
   const newSize = game.active_grid_size - 1;
   if (newSize < 4) return;
 
-  db.prepare('UPDATE games SET active_grid_size=? WHERE id=?').run(newSize, gameId);
+  await query('UPDATE games SET active_grid_size=$1 WHERE id=$2', [newSize, gameId]);
 
   // Down players out of bounds
-  const outPlayers = db.prepare(
-    'SELECT * FROM game_players WHERE game_id=? AND (x >= ? OR y >= ?) AND is_downed=0'
-  ).all(gameId, newSize, newSize);
+  const { rows: outPlayers } = await query(
+    'SELECT * FROM game_players WHERE game_id=$1 AND (x >= $2 OR y >= $3) AND is_downed=0',
+    [gameId, newSize, newSize]
+  );
 
   for (const p of outPlayers) {
     const ap = p.ap;
-    db.prepare('UPDATE game_players SET is_downed=1, can_revive=0, ap=0, hearts=0 WHERE game_id=? AND user_id=?')
-      .run(gameId, p.user_id);
+    await query('UPDATE game_players SET is_downed=1, can_revive=0, ap=0, hearts=0 WHERE game_id=$1 AND user_id=$2', [gameId, p.user_id]);
     if (ap > 0) {
-      const pos = randomEmptyCell(gameId, newSize);
+      const pos = await randomEmptyCell(gameId, newSize);
       if (pos) {
-        db.prepare('INSERT INTO board_items (id, game_id, item_type, x, y, value) VALUES (?,?,?,?,?,?)')
-          .run(uuidv4(), gameId, 'loot', pos.x, pos.y, ap);
+        await query('INSERT INTO board_items (id, game_id, item_type, x, y, value) VALUES ($1,$2,$3,$4,$5,$6)',
+          [uuidv4(), gameId, 'loot', pos.x, pos.y, ap]);
       }
     }
-    addLog(gameId, game.current_turn, 'shrink', `${p.username} was consumed by the shrinking grid!`);
+    await addLog(gameId, game.current_turn, 'shrink', `${p.username} was consumed by the shrinking grid!`);
   }
 
   // Downed players out of bounds lose revive
-  db.prepare(
-    'UPDATE game_players SET can_revive=0 WHERE game_id=? AND (x >= ? OR y >= ?) AND is_downed=1'
-  ).run(gameId, newSize, newSize);
+  await query(
+    'UPDATE game_players SET can_revive=0 WHERE game_id=$1 AND (x >= $2 OR y >= $3) AND is_downed=1',
+    [gameId, newSize, newSize]
+  );
 
-  addLog(gameId, game.current_turn, 'shrink', `The grid shrinks to ${newSize}×${newSize}`);
+  await addLog(gameId, game.current_turn, 'shrink', `The grid shrinks to ${newSize}×${newSize}`);
 }
 
 // ─── Game End ─────────────────────────────────────────────────────────────────
 
-function checkGameEnd(gameId) {
-  const active = db.prepare(
-    'SELECT COUNT(*) as c FROM game_players WHERE game_id=? AND is_downed=0'
-  ).get(gameId).c;
+async function checkGameEnd(gameId) {
+  const { rows } = await query(
+    'SELECT COUNT(*) as c FROM game_players WHERE game_id=$1 AND is_downed=0',
+    [gameId]
+  );
+  const active = parseInt(rows[0].c, 10);
 
   if (active <= 1) {
-    db.prepare('UPDATE games SET status=\'ended\' WHERE id=?').run(gameId);
-    const winner = db.prepare('SELECT * FROM game_players WHERE game_id=? AND is_downed=0').get(gameId);
-    if (winner) addLog(gameId, 0, 'end', `${winner.username} is the last commander standing. Victory!`);
-    else addLog(gameId, 0, 'end', 'All commanders down. Draw.');
+    await query("UPDATE games SET status='ended' WHERE id=$1", [gameId]);
+    const { rows: wRows } = await query('SELECT * FROM game_players WHERE game_id=$1 AND is_downed=0', [gameId]);
+    const winner = wRows[0];
+    if (winner) await addLog(gameId, 0, 'end', `${winner.username} is the last commander standing. Victory!`);
+    else await addLog(gameId, 0, 'end', 'All commanders down. Draw.');
   }
 }
 
-function checkExpiredTurns() {
+async function checkExpiredTurns() {
   const TURN_DURATION_SECONDS = 24 * 60 * 60;
   const now = Math.floor(Date.now() / 1000);
-  const expired = db.prepare(
-    `SELECT * FROM games WHERE status='active' AND turn_started_at IS NOT NULL AND ? - turn_started_at >= ?`
-  ).all(now, TURN_DURATION_SECONDS);
+  const { rows: expired } = await query(
+    `SELECT * FROM games WHERE status='active' AND turn_started_at IS NOT NULL AND $1 - turn_started_at >= $2`,
+    [now, TURN_DURATION_SECONDS]
+  );
 
-  for (const game of expired) endTurn(game.id);
+  for (const game of expired) await endTurn(game.id);
 }
 
 // ─── Game State ───────────────────────────────────────────────────────────────
 
-function getGameState(gameId, requestingUserId) {
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+async function getGameState(gameId, requestingUserId) {
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game) return null;
 
-  const allPlayers = db.prepare('SELECT * FROM game_players WHERE game_id=? ORDER BY joined_at').all(gameId);
-  const items = db.prepare('SELECT * FROM board_items WHERE game_id=? AND is_collected=0').all(gameId);
-  const logs = db.prepare(
-    'SELECT * FROM game_log WHERE game_id=? ORDER BY created_at DESC LIMIT 50'
-  ).all(gameId);
+  const { rows: allPlayers } = await query('SELECT * FROM game_players WHERE game_id=$1 ORDER BY joined_at', [gameId]);
+  const { rows: items } = await query('SELECT * FROM board_items WHERE game_id=$1 AND is_collected=0', [gameId]);
+  const { rows: logs } = await query(
+    'SELECT * FROM game_log WHERE game_id=$1 ORDER BY created_at DESC LIMIT 50',
+    [gameId]
+  );
 
   // Sanitize player data — hide AP from others, cap hearts at 3 for display
   const players = allPlayers.map(p => {
@@ -769,9 +808,11 @@ function getGameState(gameId, requestingUserId) {
   const me = allPlayers.find(p => p.user_id === requestingUserId);
   let myVotes = null;
   if (me?.is_downed) {
-    myVotes = db.prepare(
-      'SELECT vote_type, target_id FROM jury_votes WHERE game_id=? AND turn_num=? AND voter_id=?'
-    ).all(gameId, game.current_turn, requestingUserId);
+    const { rows: voteRows } = await query(
+      'SELECT vote_type, target_id FROM jury_votes WHERE game_id=$1 AND turn_num=$2 AND voter_id=$3',
+      [gameId, game.current_turn, requestingUserId]
+    );
+    myVotes = voteRows;
   }
 
   return {
@@ -791,39 +832,41 @@ function getGameState(gameId, requestingUserId) {
   };
 }
 
-function getPublicGames() {
-  const games = db.prepare(
+async function getPublicGames() {
+  const { rows: games } = await query(
     `SELECT g.*, u.username as host_name,
      (SELECT COUNT(*) FROM game_players gp WHERE gp.game_id=g.id) as player_count
      FROM games g JOIN users u ON g.created_by=u.id
      WHERE g.status IN ('lobby','active')
      ORDER BY g.created_at DESC LIMIT 20`
-  ).all();
+  );
   return games.map(g => ({ ...g, has_password: !!g.password_hash, password_hash: undefined }));
 }
 
 // ─── Delete Game ────────────────────────────────────────────────────────────
 
-function deleteGame(gameId, userId) {
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+async function deleteGame(gameId, userId) {
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game) throw new Error('Game not found');
   if (game.created_by !== userId) throw new Error('Only the host can delete this operation');
 
   // Cascade delete all related data
-  db.prepare('DELETE FROM jury_votes WHERE game_id=?').run(gameId);
-  db.prepare('DELETE FROM turn_actions WHERE game_id=?').run(gameId);
-  db.prepare('DELETE FROM board_items WHERE game_id=?').run(gameId);
-  db.prepare('DELETE FROM game_log WHERE game_id=?').run(gameId);
-  db.prepare('DELETE FROM game_players WHERE game_id=?').run(gameId);
-  db.prepare('DELETE FROM games WHERE id=?').run(gameId);
+  await query('DELETE FROM jury_votes WHERE game_id=$1', [gameId]);
+  await query('DELETE FROM turn_actions WHERE game_id=$1', [gameId]);
+  await query('DELETE FROM board_items WHERE game_id=$1', [gameId]);
+  await query('DELETE FROM game_log WHERE game_id=$1', [gameId]);
+  await query('DELETE FROM game_players WHERE game_id=$1', [gameId]);
+  await query('DELETE FROM games WHERE id=$1', [gameId]);
 
   return { deleted: true };
 }
 
 // ─── Add Bot to Lobby ────────────────────────────────────────────────────────
 
-function addBot(gameId, hostUserId, difficulty) {
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+async function addBot(gameId, hostUserId, difficulty) {
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game) throw new Error('Game not found');
   if (game.status !== 'lobby') throw new Error('Game already started');
   if (game.created_by !== hostUserId) throw new Error('Only the host can add bots');
@@ -831,22 +874,24 @@ function addBot(gameId, hostUserId, difficulty) {
   const valid = ['private', 'major', 'general'];
   if (!valid.includes(difficulty)) throw new Error('Invalid difficulty');
 
-  const count = db.prepare('SELECT COUNT(*) as c FROM game_players WHERE game_id=?').get(gameId).c;
+  const { rows: countRows } = await query('SELECT COUNT(*) as c FROM game_players WHERE game_id=$1', [gameId]);
+  const count = parseInt(countRows[0].c, 10);
   if (count >= game.max_players) throw new Error('Game is full');
 
-  const botUser = getAvailableBotUser(gameId, difficulty);
+  const botUser = await getAvailableBotUser(gameId, difficulty);
   if (!botUser) throw new Error('No available bots for this difficulty');
 
   const color = PLAYER_COLORS[count % PLAYER_COLORS.length];
   const playerId = uuidv4();
 
-  db.prepare(
+  await query(
     `INSERT INTO game_players (id, game_id, user_id, username, color, is_bot, bot_difficulty)
-     VALUES (?,?,?,?,?,1,?)`
-  ).run(playerId, gameId, botUser.id, botUser.username, color, difficulty);
+     VALUES ($1,$2,$3,$4,$5,1,$6)`,
+    [playerId, gameId, botUser.id, botUser.username, color, difficulty]
+  );
 
   const diffLabel = { private: 'PRIVATE', major: 'MAJOR', general: 'GENERAL' }[difficulty];
-  addLog(gameId, 0, 'join', `[${diffLabel}] ${botUser.username} enlisted as bot`);
+  await addLog(gameId, 0, 'join', `[${diffLabel}] ${botUser.username} enlisted as bot`);
 
   return getGameState(gameId, hostUserId);
 }

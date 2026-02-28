@@ -13,7 +13,7 @@
  *             survives at all costs, acts fast (0.5–2h). Hardest to beat.
  */
 
-const db = require('../db');
+const { query } = require('../db');
 const { v4: uuidv4 } = require('uuid');
 
 // ─── Timing windows (seconds from turn start / AP grant) ─────────────────────
@@ -43,21 +43,21 @@ function inRange(player, tx, ty) {
   return chebyshev(player.x, player.y, tx, ty) <= player.range_val;
 }
 
-function isOccupied(gameId, x, y, excludeUserId) {
-  const row = excludeUserId
-    ? db.prepare('SELECT 1 FROM game_players WHERE game_id=? AND x=? AND y=? AND is_downed=0 AND user_id!=?').get(gameId, x, y, excludeUserId)
-    : db.prepare('SELECT 1 FROM game_players WHERE game_id=? AND x=? AND y=? AND is_downed=0').get(gameId, x, y);
-  return !!row;
+async function isOccupied(gameId, x, y, excludeUserId) {
+  const { rows } = excludeUserId
+    ? await query('SELECT 1 FROM game_players WHERE game_id=$1 AND x=$2 AND y=$3 AND is_downed=0 AND user_id!=$4', [gameId, x, y, excludeUserId])
+    : await query('SELECT 1 FROM game_players WHERE game_id=$1 AND x=$2 AND y=$3 AND is_downed=0', [gameId, x, y]);
+  return rows.length > 0;
 }
 
-function getAdjacentMoves(gameId, player, gridSize) {
+async function getAdjacentMoves(gameId, player, gridSize) {
   const moves = [];
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
       if (dx === 0 && dy === 0) continue;
       const nx = player.x + dx, ny = player.y + dy;
       if (nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize) {
-        if (!isOccupied(gameId, nx, ny, player.user_id)) {
+        if (!await isOccupied(gameId, nx, ny, player.user_id)) {
           moves.push({ x: nx, y: ny });
         }
       }
@@ -66,22 +66,25 @@ function getAdjacentMoves(gameId, player, gridSize) {
   return moves;
 }
 
-function getEnemiesInRange(gameId, player) {
-  const players = db.prepare(
-    'SELECT * FROM game_players WHERE game_id=? AND is_downed=0 AND user_id!=?'
-  ).all(gameId, player.user_id);
+async function getEnemiesInRange(gameId, player) {
+  const { rows: players } = await query(
+    'SELECT * FROM game_players WHERE game_id=$1 AND is_downed=0 AND user_id!=$2',
+    [gameId, player.user_id]
+  );
   return players.filter(p => inRange(player, p.x, p.y));
 }
 
-function getAllActivePlayers(gameId, excludeUserId) {
-  return db.prepare(
-    'SELECT * FROM game_players WHERE game_id=? AND is_downed=0 AND user_id!=?'
-  ).all(gameId, excludeUserId);
+async function getAllActivePlayers(gameId, excludeUserId) {
+  const { rows } = await query(
+    'SELECT * FROM game_players WHERE game_id=$1 AND is_downed=0 AND user_id!=$2',
+    [gameId, excludeUserId]
+  );
+  return rows;
 }
 
 /** Move one step toward a target position using adjacent movement */
-function moveToward(gameId, bot, tx, ty, gridSize) {
-  const moves = getAdjacentMoves(gameId, bot, gridSize);
+async function moveToward(gameId, bot, tx, ty, gridSize) {
+  const moves = await getAdjacentMoves(gameId, bot, gridSize);
   if (moves.length === 0) return null;
   // Pick the adjacent cell that minimises distance to target
   moves.sort((a, b) =>
@@ -97,9 +100,9 @@ function randomPick(arr) {
 // ─── Difficulty: PRIVATE ─────────────────────────────────────────────────────
 // Barely functional. Random movement, accidental attacks. Test-dummy tier.
 
-function privateStrategy(gameId, bot, game) {
-  const enemies = getEnemiesInRange(gameId, bot);
-  const moves = getAdjacentMoves(gameId, bot, game.active_grid_size);
+async function privateStrategy(gameId, bot, game) {
+  const enemies = await getEnemiesInRange(gameId, bot);
+  const moves = await getAdjacentMoves(gameId, bot, game.active_grid_size);
 
   const roll = Math.random();
 
@@ -127,10 +130,10 @@ function privateStrategy(gameId, bot, game) {
 // ─── Difficulty: MAJOR ───────────────────────────────────────────────────────
 // Competent. Hunts weakest targets, repositions, sometimes upgrades.
 
-function majorStrategy(gameId, bot, game) {
-  const enemies = getEnemiesInRange(gameId, bot);
-  const allEnemies = getAllActivePlayers(gameId, bot.user_id);
-  const moves = getAdjacentMoves(gameId, bot, game.active_grid_size);
+async function majorStrategy(gameId, bot, game) {
+  const enemies = await getEnemiesInRange(gameId, bot);
+  const allEnemies = await getAllActivePlayers(gameId, bot.user_id);
+  const moves = await getAdjacentMoves(gameId, bot, game.active_grid_size);
 
   let primary = { type: 'idle' };
   let secondary = { type: 'idle' };
@@ -155,7 +158,7 @@ function majorStrategy(gameId, bot, game) {
     const nearest = allEnemies.reduce((a, b) =>
       chebyshev(bot.x, bot.y, a.x, a.y) <= chebyshev(bot.x, bot.y, b.x, b.y) ? a : b
     );
-    const dest = moveToward(gameId, bot, nearest.x, nearest.y, game.active_grid_size);
+    const dest = await moveToward(gameId, bot, nearest.x, nearest.y, game.active_grid_size);
     if (dest) primary = { type: 'move', x: dest.x, y: dest.y };
 
   } else {
@@ -164,9 +167,10 @@ function majorStrategy(gameId, bot, game) {
 
   // Secondary: 15% chance — give 1 AP to an allied bot within range if flush
   if (bot.ap >= 3 && Math.random() < 0.15) {
-    const allies = db.prepare(
-      'SELECT * FROM game_players WHERE game_id=? AND is_bot=1 AND is_downed=0 AND user_id!=?'
-    ).all(gameId, bot.user_id);
+    const { rows: allies } = await query(
+      'SELECT * FROM game_players WHERE game_id=$1 AND is_bot=1 AND is_downed=0 AND user_id!=$2',
+      [gameId, bot.user_id]
+    );
     const inRangeAlly = allies.find(a => inRange(bot, a.x, a.y));
     if (inRangeAlly) {
       secondary = { type: 'giveAP', targetUserId: inRangeAlly.user_id, amount: 1 };
@@ -179,10 +183,10 @@ function majorStrategy(gameId, bot, game) {
 // ─── Difficulty: GENERAL ─────────────────────────────────────────────────────
 // Elite commander. Executes kill shots, stockpiles range, survives, acts fast.
 
-function generalStrategy(gameId, bot, game) {
-  const enemies = getEnemiesInRange(gameId, bot);
-  const allEnemies = getAllActivePlayers(gameId, bot.user_id);
-  const moves = getAdjacentMoves(gameId, bot, game.active_grid_size);
+async function generalStrategy(gameId, bot, game) {
+  const enemies = await getEnemiesInRange(gameId, bot);
+  const allEnemies = await getAllActivePlayers(gameId, bot.user_id);
+  const moves = await getAdjacentMoves(gameId, bot, game.active_grid_size);
 
   let primary = { type: 'idle' };
   let secondary = { type: 'idle' };
@@ -216,7 +220,7 @@ function generalStrategy(gameId, bot, game) {
     const target = allEnemies.reduce((a, b) =>
       chebyshev(bot.x, bot.y, a.x, a.y) <= chebyshev(bot.x, bot.y, b.x, b.y) ? a : b
     );
-    const dest = moveToward(gameId, bot, target.x, target.y, game.active_grid_size);
+    const dest = await moveToward(gameId, bot, target.x, target.y, game.active_grid_size);
     if (dest) primary = { type: 'move', x: dest.x, y: dest.y };
     else primary = { type: 'idle' };
 
@@ -226,9 +230,10 @@ function generalStrategy(gameId, bot, game) {
 
   // ── Secondary: Give AP to struggling allied bots (cooperative play) ──
   if (bot.ap >= 4) {
-    const allies = db.prepare(
-      'SELECT * FROM game_players WHERE game_id=? AND is_bot=1 AND is_downed=0 AND user_id!=?'
-    ).all(gameId, bot.user_id);
+    const { rows: allies } = await query(
+      'SELECT * FROM game_players WHERE game_id=$1 AND is_bot=1 AND is_downed=0 AND user_id!=$2',
+      [gameId, bot.user_id]
+    );
     // Only help allies that are general-tier (team play among elites)
     const struggling = allies
       .filter(a => a.bot_difficulty === 'general' && a.ap <= 1 && inRange(bot, a.x, a.y));
@@ -242,34 +247,37 @@ function generalStrategy(gameId, bot, game) {
 
 // ─── Main: Execute a single bot's turn ───────────────────────────────────────
 
-function executeBotTurn(gameId, botUserId) {
-  const game = db.prepare('SELECT * FROM games WHERE id=?').get(gameId);
+async function executeBotTurn(gameId, botUserId) {
+  const { rows: gRows } = await query('SELECT * FROM games WHERE id=$1', [gameId]);
+  const game = gRows[0];
   if (!game || game.status !== 'active') return false;
 
-  const bot = db.prepare(
-    'SELECT * FROM game_players WHERE game_id=? AND user_id=?'
-  ).get(gameId, botUserId);
+  const { rows: bRows } = await query(
+    'SELECT * FROM game_players WHERE game_id=$1 AND user_id=$2',
+    [gameId, botUserId]
+  );
+  const bot = bRows[0];
 
   if (!bot || bot.is_downed || bot.has_taken_turn) return false;
 
   let action;
   switch (bot.bot_difficulty) {
-    case 'private': action = privateStrategy(gameId, bot, game); break;
-    case 'major':   action = majorStrategy(gameId, bot, game);   break;
-    case 'general': action = generalStrategy(gameId, bot, game); break;
+    case 'private': action = await privateStrategy(gameId, bot, game); break;
+    case 'major':   action = await majorStrategy(gameId, bot, game);   break;
+    case 'general': action = await generalStrategy(gameId, bot, game); break;
     default:        action = { primary: { type: 'idle' }, secondary: { type: 'idle' } };
   }
 
   // Import and call takeAction (handle circular dep by requiring here)
   const { takeAction } = require('./logic');
   try {
-    takeAction(gameId, botUserId, action.primary, action.secondary);
+    await takeAction(gameId, botUserId, action.primary, action.secondary);
     return true;
   } catch (err) {
     // If the chosen action failed (e.g. target moved), fall back to idle
     console.warn(`[BOT] ${bot.username} action failed (${err.message}), falling back to idle`);
     try {
-      takeAction(gameId, botUserId, { type: 'idle' }, { type: 'idle' });
+      await takeAction(gameId, botUserId, { type: 'idle' }, { type: 'idle' });
     } catch { /* best effort */ }
     return false;
   }
@@ -278,27 +286,29 @@ function executeBotTurn(gameId, botUserId) {
 // ─── Schedule bot turn timing ─────────────────────────────────────────────────
 // Called when a new turn starts or daily AP is granted.
 
-function scheduleBotTurns(gameId) {
+async function scheduleBotTurns(gameId) {
   const now = Math.floor(Date.now() / 1000);
-  const bots = db.prepare(
-    'SELECT * FROM game_players WHERE game_id=? AND is_bot=1 AND is_downed=0'
-  ).all(gameId);
+  const { rows: bots } = await query(
+    'SELECT * FROM game_players WHERE game_id=$1 AND is_bot=1 AND is_downed=0',
+    [gameId]
+  );
 
   for (const bot of bots) {
     const timing = TIMING[bot.bot_difficulty] || TIMING.private;
     const delay = timing.min + Math.floor(Math.random() * (timing.max - timing.min));
-    db.prepare(
-      'UPDATE game_players SET bot_act_after=? WHERE game_id=? AND user_id=?'
-    ).run(now + delay, gameId, bot.user_id);
+    await query(
+      'UPDATE game_players SET bot_act_after=$1 WHERE game_id=$2 AND user_id=$3',
+      [now + delay, gameId, bot.user_id]
+    );
   }
 }
 
 // ─── Process all due bot turns (called by scheduler every 30 min) ─────────────
 
-function processDueBotTurns(io) {
+async function processDueBotTurns(io) {
   const now = Math.floor(Date.now() / 1000);
 
-  const dueBots = db.prepare(`
+  const { rows: dueBots } = await query(`
     SELECT gp.*, g.id as game_id
     FROM game_players gp
     JOIN games g ON gp.game_id = g.id
@@ -306,12 +316,12 @@ function processDueBotTurns(io) {
       AND gp.is_downed=0
       AND gp.has_taken_turn=0
       AND gp.bot_act_after IS NOT NULL
-      AND gp.bot_act_after <= ?
+      AND gp.bot_act_after <= $1
       AND g.status='active'
-  `).all(now);
+  `, [now]);
 
   for (const bot of dueBots) {
-    const executed = executeBotTurn(bot.game_id, bot.user_id);
+    const executed = await executeBotTurn(bot.game_id, bot.user_id);
     if (executed && io) {
       io.to(`game:${bot.game_id}`).emit('game-state-changed', { gameId: bot.game_id });
     }
@@ -322,37 +332,35 @@ function processDueBotTurns(io) {
 
 // ─── Ensure bot users exist (seed once) ──────────────────────────────────────
 
-function ensureBotUsers() {
+async function ensureBotUsers() {
   const allNames = [
     ...BOT_NAMES.private.map(n => ({ name: n, diff: 'private' })),
     ...BOT_NAMES.major.map(n => ({ name: n, diff: 'major' })),
     ...BOT_NAMES.general.map(n => ({ name: n, diff: 'general' })),
   ];
   for (const { name, diff } of allNames) {
-    const existing = db.prepare('SELECT id FROM users WHERE username=?').get(name);
-    if (!existing) {
-      const id = `bot-${diff}-${name.replace(/[^a-zA-Z]/g, '').toLowerCase()}`;
-      db.prepare(
-        'INSERT OR IGNORE INTO users (id, username, password_hash, is_bot, bot_difficulty) VALUES (?,?,?,1,?)'
-      ).run(id, name, 'bot-no-login', diff);
-    }
+    const id = `bot-${diff}-${name.replace(/[^a-zA-Z]/g, '').toLowerCase()}`;
+    await query(
+      'INSERT INTO users (id, username, password_hash, is_bot, bot_difficulty) VALUES ($1,$2,$3,1,$4) ON CONFLICT DO NOTHING',
+      [id, name, 'bot-no-login', diff]
+    );
   }
 }
 
 // ─── Get an available bot user of a given difficulty ─────────────────────────
 
-function getAvailableBotUser(gameId, difficulty) {
-  ensureBotUsers();
+async function getAvailableBotUser(gameId, difficulty) {
+  await ensureBotUsers();
   // Find a bot of this difficulty NOT already in this game
-  const bot = db.prepare(`
+  const { rows } = await query(`
     SELECT u.* FROM users u
-    WHERE u.is_bot=1 AND u.bot_difficulty=?
+    WHERE u.is_bot=1 AND u.bot_difficulty=$1
       AND u.id NOT IN (
-        SELECT user_id FROM game_players WHERE game_id=?
+        SELECT user_id FROM game_players WHERE game_id=$2
       )
     ORDER BY RANDOM() LIMIT 1
-  `).get(difficulty, gameId);
-  return bot || null;
+  `, [difficulty, gameId]);
+  return rows[0] || null;
 }
 
 module.exports = {

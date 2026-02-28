@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
-const db = require('../db');
+const { query } = require('../db');
 const { JWT_SECRET, authMiddleware } = require('../middleware/auth');
 const { rateLimit } = require('../middleware/rateLimit');
 
@@ -26,7 +26,7 @@ function generateRecoveryCodes() {
 }
 
 /** Return up to 3 available username variants when the requested one is taken */
-function getUsernameSuggestions(base) {
+async function getUsernameSuggestions(base) {
   const suggestions = [];
   const candidates = [
     `${base}_${Math.floor(Math.random() * 90) + 10}`,
@@ -37,8 +37,8 @@ function getUsernameSuggestions(base) {
   for (const c of candidates) {
     if (c.length > 20 || c.length < 2) continue;
     if (!/^[a-zA-Z0-9_\-]+$/.test(c)) continue;
-    const taken = db.prepare('SELECT id FROM users WHERE username=?').get(c);
-    if (!taken) suggestions.push(c);
+    const { rows } = await query('SELECT id FROM users WHERE username=$1', [c]);
+    if (!rows[0]) suggestions.push(c);
     if (suggestions.length >= 3) break;
   }
   return suggestions;
@@ -58,9 +58,9 @@ router.post('/register', authLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Username can only contain letters, numbers, _ and -' });
 
   try {
-    const existing = db.prepare('SELECT id FROM users WHERE username=?').get(username);
-    if (existing) {
-      const suggestions = getUsernameSuggestions(username);
+    const { rows: existing } = await query('SELECT id FROM users WHERE username=$1', [username]);
+    if (existing[0]) {
+      const suggestions = await getUsernameSuggestions(username);
       return res.status(409).json({ error: 'Callsign already in use', suggestions });
     }
 
@@ -70,9 +70,10 @@ router.post('/register', authLimiter, async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     const id = uuidv4();
-    db.prepare(
-      'INSERT INTO users (id, username, password_hash, recovery_codes) VALUES (?,?,?,?)'
-    ).run(id, username, hash, JSON.stringify(hashedCodes));
+    await query(
+      'INSERT INTO users (id, username, password_hash, recovery_codes) VALUES ($1,$2,$3,$4)',
+      [id, username, hash, JSON.stringify(hashedCodes)]
+    );
 
     const token = jwt.sign({ userId: id, username }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id, username }, recoveryCodes: plainCodes });
@@ -90,7 +91,8 @@ router.post('/login', authLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Username and password required' });
 
   try {
-    const user = db.prepare('SELECT * FROM users WHERE username=?').get(username);
+    const { rows } = await query('SELECT * FROM users WHERE username=$1', [username]);
+    const user = rows[0];
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
     const valid = await bcrypt.compare(password, user.password_hash);
@@ -108,16 +110,7 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 });
 
-// ─── Current user (session restore) ────────────────────────────────────────
-
-router.get('/me', authMiddleware, (req, res) => {
-  const user = db.prepare('SELECT id, username FROM users WHERE id=? AND is_bot=0').get(req.userId);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ user: { id: user.id, username: user.username } });
-});
-
 // ─── Account recovery ──────────────────────────────────────────────────────
-// Validates username + one-time recovery code, resets password, burns the code.
 
 router.post('/recover', recoverLimiter, async (req, res) => {
   const { username, code, newPassword } = req.body;
@@ -126,11 +119,11 @@ router.post('/recover', recoverLimiter, async (req, res) => {
   if (newPassword.length < 8)
     return res.status(400).json({ error: 'New password must be at least 8 characters' });
 
-  // Small intentional delay — deters brute-force against code space
   await new Promise(r => setTimeout(r, 400));
 
   try {
-    const user = db.prepare('SELECT * FROM users WHERE username=?').get(username);
+    const { rows } = await query('SELECT * FROM users WHERE username=$1', [username]);
+    const user = rows[0];
     if (!user || !user.recovery_codes)
       return res.status(401).json({ error: 'Invalid callsign or code' });
 
@@ -139,18 +132,19 @@ router.post('/recover', recoverLimiter, async (req, res) => {
 
     let matchIdx = -1;
     for (let i = 0; i < stored.length; i++) {
-      if (!stored[i]) continue; // already burned
+      if (!stored[i]) continue;
       if (await bcrypt.compare(normalised, stored[i])) { matchIdx = i; break; }
     }
 
     if (matchIdx === -1)
       return res.status(401).json({ error: 'Invalid or already-used recovery code' });
 
-    // Burn the used code, update password
     stored[matchIdx] = null;
     const newHash = await bcrypt.hash(newPassword, 10);
-    db.prepare('UPDATE users SET password_hash=?, recovery_codes=? WHERE id=?')
-      .run(newHash, JSON.stringify(stored), user.id);
+    await query(
+      'UPDATE users SET password_hash=$1, recovery_codes=$2 WHERE id=$3',
+      [newHash, JSON.stringify(stored), user.id]
+    );
 
     const token = jwt.sign(
       { userId: user.id, username: user.username },
@@ -165,12 +159,14 @@ router.post('/recover', recoverLimiter, async (req, res) => {
 
 // ─── Me ────────────────────────────────────────────────────────────────────
 
-router.get('/me', authMiddleware, (req, res) => {
-  const user = db.prepare(
-    'SELECT id, username, email, email_verified, created_at FROM users WHERE id=?'
-  ).get(req.userId);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ user });
+router.get('/me', authMiddleware, async (req, res) => {
+  const { rows } = await query(
+    'SELECT id, username, email, email_verified, created_at FROM users WHERE id=$1 AND is_bot=0',
+    [req.userId]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'User not found' });
+  res.json({ user: rows[0] });
 });
 
 module.exports = router;
+

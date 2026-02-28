@@ -9,6 +9,7 @@ const gamesRoutes = require('./routes/games');
 const actionsRoutes = require('./routes/actions');
 const { initSocket } = require('./socket');
 const scheduler = require('./game/scheduler');
+const db = require('./db');
 
 const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -46,15 +47,21 @@ if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => res.sendFile(path.join(clientBuild, 'index.html')));
 }
 
-// Socket.io
-initSocket(io);
-scheduler.setIO(io);
-scheduler.init();
+// Initialise DB, then start everything
+db.init().then(async () => {
+  // Socket.io
+  initSocket(io);
+  scheduler.setIO(io);
+  scheduler.init();
 
-// Seed bot user accounts (idempotent — safe to run every boot)
-const { ensureBotUsers } = require('./game/botAI');
-ensureBotUsers();
+  // Seed bot user accounts (idempotent — safe to run every boot)
+  const { ensureBotUsers } = require('./game/botAI');
+  await ensureBotUsers();
 
-server.listen(PORT, () => {
-  console.log(`\n🎯 Tank Turn Tactics server running on http://localhost:${PORT}\n`);
+  server.listen(PORT, () => {
+    console.log(`\n🎯 Tank Turn Tactics server running on http://localhost:${PORT}\n`);
+  });
+}).catch(err => {
+  console.error('[startup] DB init failed:', err);
+  process.exit(1);
 });

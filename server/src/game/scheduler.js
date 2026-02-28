@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const db = require('../db');
+const { query } = require('../db');
 const { giveWeekdayAPToAll, spawnDailyItemsForAll, checkExpiredTurns } = require('./logic');
 const { processDueBotTurns, scheduleBotTurns } = require('./botAI');
 
@@ -21,58 +21,56 @@ function randomDelay(minMs, maxMs) {
   return Math.floor(Math.random() * (maxMs - minMs)) + minMs;
 }
 
+async function broadcastAllActive() {
+  const { rows } = await query("SELECT id FROM games WHERE status='active'");
+  for (const g of rows) broadcastGameUpdate(g.id);
+}
+
 function scheduleRandomDaily(fn, label) {
-  // Run once per day at a random time between 09:00 and 20:00
   cron.schedule('0 9 * * *', () => {
-    const delay = randomDelay(0, 11 * 60 * 60 * 1000); // 0-11 hours
-    setTimeout(() => {
+    const delay = randomDelay(0, 11 * 60 * 60 * 1000);
+    setTimeout(async () => {
       console.log(`[scheduler] Running: ${label}`);
-      fn();
-      // Broadcast to all active games
-      const games = db.prepare('SELECT id FROM games WHERE status=\'active\'').all();
-      for (const g of games) broadcastGameUpdate(g.id);
+      await fn();
+      await broadcastAllActive();
     }, delay);
   });
 }
 
 function init() {
   // Check for expired turns + execute due bot turns every 30 minutes
-  cron.schedule('*/30 * * * *', () => {
+  cron.schedule('*/30 * * * *', async () => {
     console.log('[scheduler] Checking expired turns and bot turns...');
-    checkExpiredTurns();
-    const count = processDueBotTurns(io);
+    await checkExpiredTurns();
+    const count = await processDueBotTurns(io);
     if (count > 0) console.log(`[scheduler] Executed ${count} bot turn(s)`);
-    const games = db.prepare('SELECT id FROM games WHERE status=\'active\'').all();
-    for (const g of games) broadcastGameUpdate(g.id);
+    await broadcastAllActive();
   });
 
   // Weekday AP — random time daily
-  scheduleRandomDaily(() => {
+  scheduleRandomDaily(async () => {
     if (isWeekday()) {
       console.log('[scheduler] Distributing weekday AP...');
-      giveWeekdayAPToAll();
-      // Re-schedule bot turns: bots "wake up" and decide what to do with new AP
-      const games = db.prepare('SELECT id FROM games WHERE status=\'active\'').all();
-      for (const g of games) {
-        scheduleBotTurns(g.id);  // reset their act-after window for the new day
-      }
+      await giveWeekdayAPToAll();
+      const { rows } = await query("SELECT id FROM games WHERE status='active'");
+      for (const g of rows) await scheduleBotTurns(g.id);
     }
   }, 'Weekday AP');
 
   // Daily item spawns — random time
-  scheduleRandomDaily(() => {
+  scheduleRandomDaily(async () => {
     console.log('[scheduler] Spawning daily items...');
-    spawnDailyItemsForAll();
+    await spawnDailyItemsForAll();
   }, 'Daily spawns');
 
   // Random loot drop — 2x daily at random times
   cron.schedule('0 */12 * * *', () => {
     const delay = randomDelay(0, 6 * 60 * 60 * 1000);
-    setTimeout(() => {
+    setTimeout(async () => {
       const { spawnItem } = require('./logic');
-      const games = db.prepare('SELECT id FROM games WHERE status=\'active\'').all();
-      for (const g of games) {
-        spawnItem(g.id, 'loot', 3);
+      const { rows } = await query("SELECT id FROM games WHERE status='active'");
+      for (const g of rows) {
+        await spawnItem(g.id, 'loot', 3);
         broadcastGameUpdate(g.id);
       }
     }, delay);
