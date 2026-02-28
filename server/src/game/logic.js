@@ -460,12 +460,6 @@ async function takeAction(gameId, userId, primaryAction, secondaryAction) {
 
   return getGameState(gameId, userId);
 }
-  if (turnsTaken >= activePlayers) {
-    endTurn(gameId);
-  }
-
-  return getGameState(gameId, userId);
-}
 
 // ─── Collect items when moving ───────────────────────────────────────────────
 
