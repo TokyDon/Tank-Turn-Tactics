@@ -140,14 +140,14 @@ export const sendMessage = (recipientId: string, content: string, gameId?: strin
     body: JSON.stringify({ recipientId, content, gameId }),
   });
 
-export const getConversations = () =>
-  request<{ conversations: Conversation[] }>('/messages/conversations');
+export const getConversations = (gameId?: string) =>
+  request<{ conversations: Conversation[] }>('/messages/conversations' + (gameId ? '?gameId=' + gameId : ''));
 
-export const getThread = (userId: string) =>
-  request<{ messages: Message[] }>(`/messages/thread/${userId}`);
+export const getThread = (userId: string, gameId?: string) =>
+  request<{ messages: Message[] }>('/messages/thread/' + userId + (gameId ? '?gameId=' + gameId : ''));
 
-export const markRead = (userId: string) =>
-  request<{ ok: boolean }>(`/messages/read/${userId}`, { method: 'POST' });
+export const markRead = (userId: string, gameId?: string) =>
+  request<{ ok: boolean }>('/messages/read/' + userId + (gameId ? '?gameId=' + gameId : ''), { method: 'POST' });
 
-export const getUnreadCount = () =>
-  request<{ count: number }>('/messages/unread-count');
+export const getUnreadCount = (gameId?: string) =>
+  request<{ count: number }>('/messages/unread-count' + (gameId ? '?gameId=' + gameId : ''));

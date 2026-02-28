@@ -29,7 +29,7 @@ export default function GameChat({ game, user, onUnreadChange, openUserId, openU
 
   // --- Load conversations on mount to seed sort order + unread counts ---
   useEffect(() => {
-    api.getConversations().then(({ conversations }) => {
+    api.getConversations(game.id).then(({ conversations }) => {
       setConvInfo(prev => {
         const next = { ...prev };
         for (const c of conversations) {
@@ -41,7 +41,7 @@ export default function GameChat({ game, user, onUnreadChange, openUserId, openU
         return next;
       });
     }).catch(() => {});
-  }, []);
+  }, [game.id]);
 
   // --- Notify parent of total unread ---
   useEffect(() => {
@@ -54,9 +54,10 @@ export default function GameChat({ game, user, onUnreadChange, openUserId, openU
     const socket = getSocket();
     const handle = (msg: Message) => {
       if (msg.recipientId !== user.id) return;
+      if (msg.gameId !== game.id) return;
       if (activeUserId === msg.senderId) {
         setThread(prev => [...prev, msg]);
-        api.markRead(msg.senderId).catch(() => {});
+        api.markRead(msg.senderId, game.id).catch(() => {});
         setConvInfo(prev => ({
           ...prev,
           [msg.senderId]: { lastAt: msg.createdAt, unread: 0 },
@@ -73,7 +74,7 @@ export default function GameChat({ game, user, onUnreadChange, openUserId, openU
     };
     socket.on('new-message', handle);
     return () => { socket.off('new-message', handle); };
-  }, [user.id, activeUserId]);
+  }, [user.id, game.id, activeUserId]);
 
   // --- Scroll to bottom when thread changes ---
   useEffect(() => {
@@ -86,9 +87,9 @@ export default function GameChat({ game, user, onUnreadChange, openUserId, openU
     setThread([]);
     setLoading(true);
     try {
-      const { messages } = await api.getThread(userId);
+      const { messages } = await api.getThread(userId, game.id);
       setThread(messages);
-      await api.markRead(userId);
+      await api.markRead(userId, game.id);
       setConvInfo(prev => ({
         ...prev,
         [userId]: { lastAt: prev[userId]?.lastAt ?? 0, unread: 0 },
@@ -98,7 +99,7 @@ export default function GameChat({ game, user, onUnreadChange, openUserId, openU
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [game.id]);
 
   // Auto-open thread when navigated from grid popup
   useEffect(() => {

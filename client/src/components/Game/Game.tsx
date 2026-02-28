@@ -476,9 +476,11 @@ export default function Game({ onLeave }: Props) {
             </div>
           )}
 
-          {tab === 'chat' && (
+          {/* GameChat is always mounted so the socket listener + unread count
+              stays active regardless of which tab is open */}
+          <div style={tab !== 'chat' ? { display: 'none' } : undefined}>
             <GameChat game={game} user={user} onUnreadChange={setChatUnread} openUserId={chatOpenUserId} openUsername={chatOpenUsername} />
-          )}
+          </div>
 
           {/* Game ended */}
           {game.status === 'ended' && (

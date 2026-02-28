@@ -53,6 +53,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
 // GET /api/messages/conversations — list all conversations with unread counts
 router.get('/conversations', authMiddleware, async (req, res) => {
+  const gameId = req.query.gameId || null;
   try {
     // Last message per conversation partner using DISTINCT ON
     const convoResult = await query(
@@ -69,10 +70,11 @@ router.get('/conversations', authMiddleware, async (req, res) => {
            content,
            created_at
          FROM messages
-         WHERE sender_id = $1 OR recipient_id = $1
+         WHERE (sender_id = $1 OR recipient_id = $1)
+           AND ($2::text IS NULL OR game_id = $2)
        ) sub
        ORDER BY other_id, created_at DESC`,
-      [req.userId]
+      [req.userId, gameId]
     );
 
     // Unread counts per sender
@@ -80,8 +82,9 @@ router.get('/conversations', authMiddleware, async (req, res) => {
       `SELECT sender_id, COUNT(*)::int AS unread_count
        FROM messages
        WHERE recipient_id = $1 AND read_at IS NULL
+         AND ($2::text IS NULL OR game_id = $2)
        GROUP BY sender_id`,
-      [req.userId]
+      [req.userId, gameId]
     );
 
     const unreadMap = new Map(
@@ -108,15 +111,16 @@ router.get('/conversations', authMiddleware, async (req, res) => {
 // GET /api/messages/thread/:userId — get message thread with a specific user
 router.get('/thread/:userId', authMiddleware, async (req, res) => {
   const otherId = req.params.userId;
+  const gameId = req.query.gameId || null;
   try {
     const result = await query(
       `SELECT id, game_id, sender_id, sender_username, recipient_id, content, created_at, read_at
        FROM messages
-       WHERE (sender_id = $1 AND recipient_id = $2)
-          OR (sender_id = $2 AND recipient_id = $1)
+       WHERE ((sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1))
+         AND ($3::text IS NULL OR game_id = $3)
        ORDER BY created_at ASC
        LIMIT 200`,
-      [req.userId, otherId]
+      [req.userId, otherId, gameId]
     );
 
     const messages = result.rows.map(r => ({
@@ -140,11 +144,13 @@ router.get('/thread/:userId', authMiddleware, async (req, res) => {
 // POST /api/messages/read/:userId — mark all messages from a user as read
 router.post('/read/:userId', authMiddleware, async (req, res) => {
   const otherId = req.params.userId;
+  const gameId = req.query.gameId || null;
   try {
     await query(
       `UPDATE messages SET read_at = $1
-       WHERE sender_id = $2 AND recipient_id = $3 AND read_at IS NULL`,
-      [Date.now(), otherId, req.userId]
+       WHERE sender_id = $2 AND recipient_id = $3 AND read_at IS NULL
+         AND ($4::text IS NULL OR game_id = $4)`,
+      [Date.now(), otherId, req.userId, gameId]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -155,10 +161,12 @@ router.post('/read/:userId', authMiddleware, async (req, res) => {
 
 // GET /api/messages/unread-count — total unread messages for current user
 router.get('/unread-count', authMiddleware, async (req, res) => {
+  const gameId = req.query.gameId || null;
   try {
     const result = await query(
-      `SELECT COUNT(*) AS count FROM messages WHERE recipient_id = $1 AND read_at IS NULL`,
-      [req.userId]
+      `SELECT COUNT(*) AS count FROM messages WHERE recipient_id = $1 AND read_at IS NULL
+         AND ($2::text IS NULL OR game_id = $2)`,
+      [req.userId, gameId]
     );
     res.json({ count: Number(result.rows[0].count) });
   } catch (err) {
