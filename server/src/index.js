@@ -7,6 +7,7 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const gamesRoutes = require('./routes/games');
 const actionsRoutes = require('./routes/actions');
+const messagesRoutes = require('./routes/messages');
 const { initSocket } = require('./socket');
 const scheduler = require('./game/scheduler');
 const db = require('./db');
@@ -36,6 +37,8 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/games', gamesRoutes);
 app.use('/api/games', actionsRoutes);
+app.use('/api/messages', messagesRoutes);
+app.set('io', io);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));

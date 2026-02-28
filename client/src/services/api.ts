@@ -1,4 +1,4 @@
-import type { GameState, PublicGame, PrimaryAction, SecondaryAction } from '../types/game';
+import type { GameState, PublicGame, PrimaryAction, SecondaryAction, Message, Conversation } from '../types/game';
 
 const BASE = '/api';
 
@@ -125,3 +125,29 @@ export const addBot = (gameId: string, difficulty: 'private' | 'major' | 'genera
 
 export const forceAdvanceTurn = (gameId: string) =>
   request<{ game: GameState }>(`/games/${gameId}/admin/force-turn`, { method: 'POST' });
+
+// Game settings (host-only, lobby only)
+export const updateGameSettings = (gameId: string, settings: { gridSize?: number; shrinkEnabled?: boolean }) =>
+  request<{ game: GameState }>(`/games/${gameId}/settings`, {
+    method: 'PATCH',
+    body: JSON.stringify(settings),
+  });
+
+// Messages
+export const sendMessage = (recipientId: string, content: string, gameId?: string) =>
+  request<{ message: Message }>('/messages', {
+    method: 'POST',
+    body: JSON.stringify({ recipientId, content, gameId }),
+  });
+
+export const getConversations = () =>
+  request<{ conversations: Conversation[] }>('/messages/conversations');
+
+export const getThread = (userId: string) =>
+  request<{ messages: Message[] }>(`/messages/thread/${userId}`);
+
+export const markRead = (userId: string) =>
+  request<{ ok: boolean }>(`/messages/read/${userId}`, { method: 'POST' });
+
+export const getUnreadCount = () =>
+  request<{ count: number }>('/messages/unread-count');

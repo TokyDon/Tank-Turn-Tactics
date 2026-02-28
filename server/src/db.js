@@ -131,12 +131,30 @@ async function init() {
     )
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      game_id TEXT DEFAULT NULL,
+      sender_id TEXT NOT NULL,
+      sender_username TEXT NOT NULL,
+      recipient_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT * 1000,
+      read_at BIGINT DEFAULT NULL,
+      FOREIGN KEY (sender_id) REFERENCES users(id),
+      FOREIGN KEY (recipient_id) REFERENCES users(id)
+    )
+  `);
+
   // Performance indexes
   await query('CREATE INDEX IF NOT EXISTS idx_gp_game_id ON game_players(game_id)');
   await query('CREATE INDEX IF NOT EXISTS idx_bi_game_id ON board_items(game_id)');
   await query('CREATE INDEX IF NOT EXISTS idx_gl_game_id ON game_log(game_id)');
   await query('CREATE INDEX IF NOT EXISTS idx_jv_game_id ON jury_votes(game_id)');
   await query('CREATE INDEX IF NOT EXISTS idx_gp_bot ON game_players(game_id, is_bot, is_downed)');
+  await query('CREATE INDEX IF NOT EXISTS idx_msg_recipient ON messages(recipient_id)');
+  await query('CREATE INDEX IF NOT EXISTS idx_msg_sender ON messages(sender_id)');
+  await query('CREATE INDEX IF NOT EXISTS idx_msg_convo ON messages(sender_id, recipient_id, created_at DESC)');
 
   console.log('[db] PostgreSQL schema ready');
 }

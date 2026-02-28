@@ -1,6 +1,7 @@
 const express = require('express');
 const { authMiddleware } = require('../middleware/auth');
 const { createGame, joinGame, startGame, addBot, deleteGame, getGameState, getPublicGames } = require('../game/logic');
+const { query } = require('../db');
 
 const router = express.Router();
 
@@ -78,6 +79,37 @@ router.post('/:id/bots', authMiddleware, async (req, res) => {
     res.json({ game: state });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// PATCH /:id/settings — host can edit grid size and shrink toggle while game is in lobby
+router.patch('/:id/settings', authMiddleware, async (req, res) => {
+  const { gridSize, shrinkEnabled } = req.body;
+  if (gridSize === undefined && shrinkEnabled === undefined) {
+    return res.status(400).json({ error: 'No settings provided' });
+  }
+  try {
+    const gameResult = await query('SELECT * FROM games WHERE id = $1', [req.params.id]);
+    if (!gameResult.rows.length) return res.status(404).json({ error: 'Game not found' });
+    const game = gameResult.rows[0];
+    if (game.created_by !== req.userId) return res.status(403).json({ error: 'Only the host can change settings' });
+    if (game.status !== 'lobby') return res.status(400).json({ error: 'Settings can only be changed in the lobby' });
+
+    const newGridSize = gridSize !== undefined
+      ? Math.min(20, Math.max(6, parseInt(gridSize, 10) || game.grid_size))
+      : game.grid_size;
+    const newShrink = shrinkEnabled !== undefined ? !!shrinkEnabled : game.shrink_enabled;
+
+    await query(
+      'UPDATE games SET grid_size = $1, active_grid_size = $1, shrink_enabled = $2 WHERE id = $3',
+      [newGridSize, newShrink, req.params.id]
+    );
+
+    const state = await getGameState(req.params.id, req.userId);
+    res.json({ game: state });
+  } catch (err) {
+    console.error('[settings update error]', err);
+    res.status(500).json({ error: 'Failed to update settings' });
   }
 });
 

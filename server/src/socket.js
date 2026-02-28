@@ -20,6 +20,9 @@ function initSocket(io) {
   io.on('connection', (socket) => {
     console.log(`[socket] ${socket.username} connected`);
 
+    // Each user joins their personal room so DMs can be delivered in real time
+    socket.join(`user:${socket.userId}`);
+
     socket.on('join-game', (gameId) => {
       socket.join(`game:${gameId}`);
       const state = getGameState(gameId, socket.userId);

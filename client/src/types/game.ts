@@ -64,6 +64,7 @@ export interface PublicGame {
   name: string;
   status: 'lobby' | 'active' | 'ended';
   grid_size: number;
+  shrink_enabled: boolean;
   max_players: number;
   player_count: number;
   host_name: string;
@@ -85,4 +86,23 @@ export interface SecondaryAction {
   type: SecondaryActionType;
   targetUserId?: string;
   amount?: number;
+}
+
+export interface Message {
+  id: string;
+  gameId: string | null;
+  senderId: string;
+  senderUsername: string;
+  recipientId: string;
+  content: string;
+  createdAt: number;
+  readAt: number | null;
+}
+
+export interface Conversation {
+  userId: string;
+  username: string;
+  lastMessage: string;
+  lastAt: number;
+  unreadCount: number;
 }

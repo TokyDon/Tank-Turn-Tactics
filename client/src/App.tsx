@@ -3,12 +3,20 @@ import { useGame } from './context/GameContext';
 import Login from './components/Auth/Login';
 import Lobby from './components/Lobby/Lobby';
 import Game from './components/Game/Game';
+import Chat from './components/Chat/Chat';
 
 export default function App() {
   const { user, game } = useGame();
   const [view, setView] = useState<'lobby' | 'game'>('lobby');
 
   if (!user) return <Login />;
-  if (game && view === 'game') return <Game onLeave={() => setView('lobby')} />;
-  return <Lobby onEnterGame={() => setView('game')} />;
+  return (
+    <>
+      {game && view === 'game'
+        ? <Game onLeave={() => setView('lobby')} />
+        : <Lobby onEnterGame={() => setView('game')} />
+      }
+      <Chat />
+    </>
+  );
 }

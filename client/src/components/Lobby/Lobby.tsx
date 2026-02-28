@@ -22,6 +22,10 @@ export default function Lobby({ onEnterGame }: Props) {
   const [joinPassword, setJoinPassword] = useState('');
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  // Inline settings editor
+  const [settingsTarget, setSettingsTarget] = useState<string | null>(null);
+  const [pendingGridSize, setPendingGridSize] = useState(16);
+  const [pendingShrink, setPendingShrink] = useState(false);
 
   useEffect(() => {
     loadGames();
@@ -101,6 +105,19 @@ export default function Lobby({ onEnterGame }: Props) {
       await loadGames();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
+    } finally {
+      setLoadingAction('');
+    }
+  }
+
+  async function handleUpdateSettings(id: string) {
+    setLoadingAction('settings-' + id);
+    try {
+      await api.updateGameSettings(id, { gridSize: pendingGridSize, shrinkEnabled: pendingShrink });
+      setSettingsTarget(null);
+      await loadGames();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update settings');
     } finally {
       setLoadingAction('');
     }
@@ -283,6 +300,26 @@ export default function Lobby({ onEnterGame }: Props) {
                       </button>
                     )}
 
+                    {/* Host settings button (lobby only) */}
+                    {isOwn && g.status === 'lobby' && !showDeleteConfirm && (
+                      <button
+                        className={`btn btn-ghost btn-sm${settingsTarget === g.id ? ' btn-active' : ''}`}
+                        disabled={!!loadingAction}
+                        onClick={() => {
+                          if (settingsTarget === g.id) {
+                            setSettingsTarget(null);
+                          } else {
+                            setSettingsTarget(g.id);
+                            setPendingGridSize(g.grid_size);
+                            setPendingShrink(g.shrink_enabled);
+                          }
+                        }}
+                        title="Edit settings"
+                      >
+                        ⚙
+                      </button>
+                    )}
+
                     {/* Host delete button */}
                     {isOwn && !showDeleteConfirm && (
                       <button
@@ -293,6 +330,47 @@ export default function Lobby({ onEnterGame }: Props) {
                       >
                         ✕
                       </button>
+                    )}
+
+                    {/* Inline settings editor */}
+                    {settingsTarget === g.id && g.status === 'lobby' && (
+                      <div className="settings-row">
+                        <div className="settings-row-fields">
+                          <div className="form-group form-group--inline">
+                            <label className="form-label tactical">GRID</label>
+                            <select
+                              className="input input-sm"
+                              value={pendingGridSize}
+                              onChange={e => setPendingGridSize(Number(e.target.value))}
+                            >
+                              {[6,8,10,12,14,16,20].map(n => (
+                                <option key={n} value={n}>{n}×{n}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <label className="shrink-toggle shrink-toggle--compact">
+                            <input
+                              type="checkbox"
+                              checked={pendingShrink}
+                              onChange={e => setPendingShrink(e.target.checked)}
+                            />
+                            <span className="shrink-label tactical">SHRINK</span>
+                          </label>
+                        </div>
+                        <div className="settings-row-actions">
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => setSettingsTarget(null)}
+                          >CANCEL</button>
+                          <button
+                            className="btn btn-amber btn-sm"
+                            disabled={loadingAction === 'settings-' + g.id}
+                            onClick={() => handleUpdateSettings(g.id)}
+                          >
+                            {loadingAction === 'settings-' + g.id ? 'SAVING...' : 'SAVE'}
+                          </button>
+                        </div>
+                      </div>
                     )}
 
                     {/* Inline password prompt */}
