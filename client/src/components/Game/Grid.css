@@ -399,3 +399,6 @@
   color: var(--text-muted);
   opacity: 0.4;
 }
+.popup-msg-btn {
+  margin-top: 10px;
+}

@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const games = await getPublicGames();
+    const games = await getPublicGames(req.userId);
     res.json({ games });
   } catch (err) {
     console.error('[games list error]', err);

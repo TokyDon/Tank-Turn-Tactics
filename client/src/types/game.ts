@@ -70,6 +70,7 @@ export interface PublicGame {
   host_name: string;
   created_at: number;
   has_password: boolean;
+  is_player: boolean;
 }
 
 export type PrimaryActionType = 'move' | 'attack' | 'addHeart' | 'upgradeRange' | 'idle';

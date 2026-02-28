@@ -12,9 +12,10 @@ interface Props {
   secondaryTargetIds?: Set<string>;
   onCellClick: (x: number, y: number) => void;
   onPlayerClick: (player: GamePlayer) => void;
+  onMessagePlayer?: (player: GamePlayer) => void;
 }
 
-export default function Grid({ game, me, phase, secondaryTargetIds = new Set(), onCellClick, onPlayerClick }: Props) {
+export default function Grid({ game, me, phase, secondaryTargetIds = new Set(), onCellClick, onPlayerClick, onMessagePlayer }: Props) {
   const size = game.activeGridSize;
   const [zoom, setZoom] = useState(1.0);
   const [popup, setPopup] = useState<GamePlayer | null>(null);
@@ -201,6 +202,14 @@ export default function Grid({ game, me, phase, secondaryTargetIds = new Set(), 
                 <span className="popup-stat-value">{COLS[popup.x]}{popup.y + 1}</span>
               </div>
             </div>
+            {onMessagePlayer && me && !me.isDowned && !popup.isMe && !popup.isBot && (
+              <button
+                className="btn btn-ghost btn-sm btn-full popup-msg-btn"
+                onClick={() => { onMessagePlayer(popup); setPopup(null); }}
+              >
+                ✉ MESSAGE
+              </button>
+            )}
           </div>
         </div>
       )}

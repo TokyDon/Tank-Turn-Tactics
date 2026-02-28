@@ -35,6 +35,8 @@ export default function Game({ onLeave }: Props) {
   const [pendingSecondaryAction, setPendingSecondaryAction] = useState<SecondaryAction | null>(null);
   const [tab, setTab] = useState<'grid' | 'log' | 'players' | 'chat'>('grid');
   const [chatUnread, setChatUnread] = useState(0);
+  const [chatOpenUserId, setChatOpenUserId] = useState<string | undefined>();
+  const [chatOpenUsername, setChatOpenUsername] = useState<string | undefined>();
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Declared early (with optional chaining) so the useEffect below can reference it
@@ -199,6 +201,12 @@ export default function Game({ onLeave }: Props) {
       setError('');
       if (toastTimer.current) clearTimeout(toastTimer.current);
     }
+  }
+
+  function handleMessagePlayer(target: GamePlayer) {
+    setChatOpenUserId(target.userId);
+    setChatOpenUsername(target.username);
+    setTab('chat');
   }
 
   const canAct = me && !me.isDowned && !me.hasTakenTurn && game.status === 'active';
@@ -383,6 +391,7 @@ export default function Game({ onLeave }: Props) {
                 secondaryTargetIds={secondaryTargetIds}
                 onCellClick={handleCellClick}
                 onPlayerClick={handlePlayerClick}
+                onMessagePlayer={handleMessagePlayer}
               />
             </div>
           )}
@@ -468,7 +477,7 @@ export default function Game({ onLeave }: Props) {
           )}
 
           {tab === 'chat' && (
-            <GameChat game={game} user={user} onUnreadChange={setChatUnread} />
+            <GameChat game={game} user={user} onUnreadChange={setChatUnread} openUserId={chatOpenUserId} openUsername={chatOpenUsername} />
           )}
 
           {/* Game ended */}

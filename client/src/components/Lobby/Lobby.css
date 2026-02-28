@@ -81,6 +81,30 @@
   padding: 0 var(--sp-2);
 }
 
+.section-header--toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  padding: 0 var(--sp-2);
+}
+.section-header--toggle:hover .section-title {
+  color: var(--text-primary);
+}
+
+.section-count {
+  font-size: 11px;
+  opacity: 0.6;
+  margin-left: 6px;
+}
+
+.section-chevron {
+  font-size: 14px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 .section-title {
   font-size: 13px;
   font-weight: 600;

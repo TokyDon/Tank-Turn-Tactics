@@ -8,11 +8,13 @@ interface Props {
   game: GameState;
   user: User;
   onUnreadChange?: (total: number) => void;
+  openUserId?: string;
+  openUsername?: string;
 }
 
 interface ConvInfo { lastAt: number; unread: number; }
 
-export default function GameChat({ game, user, onUnreadChange }: Props) {
+export default function GameChat({ game, user, onUnreadChange, openUserId, openUsername }: Props) {
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
   const [activeUsername, setActiveUsername] = useState('');
   const [thread, setThread] = useState<Message[]>([]);
@@ -97,6 +99,13 @@ export default function GameChat({ game, user, onUnreadChange }: Props) {
       setLoading(false);
     }
   }, []);
+
+  // Auto-open thread when navigated from grid popup
+  useEffect(() => {
+    if (openUserId && openUsername) {
+      openThread(openUserId, openUsername);
+    }
+  }, [openUserId, openUsername]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSend = async () => {
     if (!draft.trim() || !activeUserId || sending) return;

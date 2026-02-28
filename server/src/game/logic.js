@@ -835,13 +835,15 @@ async function getGameState(gameId, requestingUserId) {
   };
 }
 
-async function getPublicGames() {
+async function getPublicGames(userId) {
   const { rows: games } = await query(
     `SELECT g.*, u.username as host_name,
-     (SELECT COUNT(*) FROM game_players gp WHERE gp.game_id=g.id) as player_count
+     (SELECT COUNT(*) FROM game_players gp WHERE gp.game_id=g.id) as player_count,
+     (SELECT COUNT(*) > 0 FROM game_players gp2 WHERE gp2.game_id=g.id AND gp2.user_id=$1) as is_player
      FROM games g JOIN users u ON g.created_by=u.id
      WHERE g.status IN ('lobby','active')
-     ORDER BY g.created_at DESC LIMIT 20`
+     ORDER BY g.created_at DESC LIMIT 20`,
+    [userId]
   );
   return games.map(g => ({ ...g, has_password: !!g.password_hash, password_hash: undefined }));
 }
