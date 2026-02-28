@@ -3,7 +3,6 @@ import { useGame } from './context/GameContext';
 import Login from './components/Auth/Login';
 import Lobby from './components/Lobby/Lobby';
 import Game from './components/Game/Game';
-import Chat from './components/Chat/Chat';
 import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
@@ -17,7 +16,6 @@ export default function App() {
         ? <Game onLeave={() => setView('lobby')} />
         : <Lobby onEnterGame={() => setView('game')} />
       }
-      {view !== 'game' && <Chat />}
     </ErrorBoundary>
   );
 }
