@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const { query } = require('../db');
-const { giveWeekdayAPToAll, spawnDailyItemsForAll, checkExpiredTurns } = require('./logic');
-const { processDueBotTurns, scheduleBotTurns } = require('./botAI');
+const { spawnDailyItemsForAll, checkExpiredTurns } = require('./logic');
+const { processDueBotTurns } = require('./botAI');
 
 let io = null;
 
@@ -10,11 +10,6 @@ function setIO(socketIO) { io = socketIO; }
 function broadcastGameUpdate(gameId) {
   if (!io) return;
   io.to(`game:${gameId}`).emit('game-state-changed', { gameId });
-}
-
-function isWeekday() {
-  const d = new Date().getDay();
-  return d >= 1 && d <= 5;
 }
 
 function randomDelay(minMs, maxMs) {
@@ -38,24 +33,19 @@ function scheduleRandomDaily(fn, label) {
 }
 
 function init() {
-  // Check for expired turns + execute due bot turns every 30 minutes
-  cron.schedule('*/30 * * * *', async () => {
-    console.log('[scheduler] Checking expired turns and bot turns...');
-    await checkExpiredTurns();
-    const count = await processDueBotTurns(io);
-    if (count > 0) console.log(`[scheduler] Executed ${count} bot turn(s)`);
-    await broadcastAllActive();
-  });
-
-  // Weekday AP — random time daily
-  scheduleRandomDaily(async () => {
-    if (isWeekday()) {
-      console.log('[scheduler] Distributing weekday AP...');
-      await giveWeekdayAPToAll();
-      const { rows } = await query("SELECT id FROM games WHERE status='active'");
-      for (const g of rows) await scheduleBotTurns(g.id);
+  // Check for expired turns + execute due bot turns every minute
+  cron.schedule('* * * * *', async () => {
+    const advanced = await checkExpiredTurns();
+    for (const id of advanced) {
+      console.log(`[scheduler] Turn advanced for game ${id}`);
+      broadcastGameUpdate(id);
     }
-  }, 'Weekday AP');
+    const count = await processDueBotTurns(io);
+    if (count > 0) {
+      console.log(`[scheduler] Executed ${count} bot turn(s)`);
+      await broadcastAllActive();
+    }
+  });
 
   // Daily item spawns — random time
   scheduleRandomDaily(async () => {

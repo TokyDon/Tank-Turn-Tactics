@@ -565,7 +565,13 @@ async function endTurn(gameId) {
   // Reset turn flags (both phases)
   await query('UPDATE game_players SET has_taken_turn=0, has_taken_primary=0, is_haunted=0 WHERE game_id=$1 AND is_downed=0', [gameId]);
 
-  await addLog(gameId, newTurn, 'system', `Turn ${newTurn} begins`);
+  // Give +1 AP to all active non-haunted players at the start of every new turn
+  await query(
+    'UPDATE game_players SET ap=ap+1 WHERE game_id=$1 AND is_downed=0 AND is_haunted=0',
+    [gameId]
+  );
+
+  await addLog(gameId, newTurn, 'system', `Turn ${newTurn} begins — AP distributed to active units`);
 
   // Schedule new timing for any bot players
   await scheduleBotTurns(gameId);
@@ -767,6 +773,7 @@ async function checkExpiredTurns() {
   );
 
   for (const game of expired) await endTurn(game.id);
+  return expired.map(g => g.id);
 }
 
 // ─── Game State ───────────────────────────────────────────────────────────────
