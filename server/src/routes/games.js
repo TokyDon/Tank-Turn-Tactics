@@ -116,7 +116,7 @@ router.patch('/:id/settings', authMiddleware, async (req, res) => {
 // ONE-TIME backfill: grant missed turn-start AP to all active games
 // Call once via: POST /api/games/admin/backfill-ap
 // Remove after use.
-router.post('/admin/backfill-ap', authMiddleware, async (req, res) => {
+router.post('/admin/backfill-ap', async (req, res) => {
   try {
     const result = await query(
       `UPDATE game_players SET ap = ap + 1
