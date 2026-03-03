@@ -113,4 +113,22 @@ router.patch('/:id/settings', authMiddleware, async (req, res) => {
   }
 });
 
+// ONE-TIME: disable shrink on a named game
+// POST /api/games/admin/disable-shrink  { "name": "Gymkhana" }
+// Remove after use.
+router.post('/admin/disable-shrink', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'name required' });
+    const result = await query(
+      `UPDATE games SET shrink_enabled=0 WHERE name=$1`,
+      [name]
+    );
+    res.json({ ok: true, updated: result.rowCount });
+  } catch (err) {
+    console.error('[disable-shrink error]', err);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
 module.exports = router;
