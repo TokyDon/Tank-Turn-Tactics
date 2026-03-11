@@ -146,6 +146,17 @@ async function init() {
     )
   `);
 
+  // Row Level Security — block direct PostgREST/anon access; server connects as
+  // superuser so RLS is bypassed for all server-side queries.
+  await query('ALTER TABLE users ENABLE ROW LEVEL SECURITY');
+  await query('ALTER TABLE games ENABLE ROW LEVEL SECURITY');
+  await query('ALTER TABLE game_players ENABLE ROW LEVEL SECURITY');
+  await query('ALTER TABLE turn_actions ENABLE ROW LEVEL SECURITY');
+  await query('ALTER TABLE board_items ENABLE ROW LEVEL SECURITY');
+  await query('ALTER TABLE jury_votes ENABLE ROW LEVEL SECURITY');
+  await query('ALTER TABLE game_log ENABLE ROW LEVEL SECURITY');
+  await query('ALTER TABLE messages ENABLE ROW LEVEL SECURITY');
+
   // Performance indexes
   await query('CREATE INDEX IF NOT EXISTS idx_gp_game_id ON game_players(game_id)');
   await query('CREATE INDEX IF NOT EXISTS idx_bi_game_id ON board_items(game_id)');
